@@ -435,6 +435,74 @@ const CHORD_QUALITY_TONES = {
   m7b5: ['R','m3','TT','m7'], dim7: ['R','m3','TT','M6'],
 };
 function centsToSteps(cents, edo) { return Math.round(cents / 1200 * edo); }
+
+function getDiatonicStep(fromDegree, toDegree, tuning) {
+  let step = tuning.scale[toDegree] - tuning.scale[fromDegree];
+  if (toDegree < fromDegree) step += tuning.edo;
+  return step;
+}
+
+function resolveChordTones(st, tuning, extensions, isTritoneSub) {
+  const edo = tuning.edo;
+  const degree = st.degree;
+
+  // Base diatonic steps stacked from scale degrees
+  const t3_diatonic = getDiatonicStep(degree, (degree + 2) % 7, tuning);
+  const t5_diatonic = getDiatonicStep(degree, (degree + 4) % 7, tuning);
+  const t7_diatonic = getDiatonicStep(degree, (degree + 6) % 7, tuning);
+
+  let root = 0;
+  let t3 = t3_diatonic;
+  let t5 = t5_diatonic;
+  let t7 = t7_diatonic;
+
+  // Chromatic and modal qualities override
+  const quality = st.quality;
+  if (st.isSecondaryDominant || isTritoneSub || quality === 'dom7') {
+    // Dominant 7th needs correct leading intervals in any EDO: major 3rd, perfect 5th, minor 7th
+    t3 = centsToSteps(386.3, edo);
+    t5 = centsToSteps(702.0, edo);
+    t7 = centsToSteps(968.8, edo);
+  } else if (quality === 'maj7' || quality === 'maj') {
+    t3 = centsToSteps(386.3, edo);
+    t5 = t5_diatonic;
+    t7 = centsToSteps(1088.3, edo);
+  } else if (quality === 'min7' || quality === 'min') {
+    t3 = centsToSteps(315.6, edo);
+    t5 = t5_diatonic;
+    t7 = centsToSteps(968.8, edo);
+  } else if (quality === 'm7b5' || quality === 'dim') {
+    t3 = centsToSteps(315.6, edo);
+    t5 = centsToSteps(600.0, edo);
+    t7 = centsToSteps(968.8, edo);
+  } else if (quality === 'dim7') {
+    t3 = centsToSteps(315.6, edo);
+    t5 = centsToSteps(600.0, edo);
+    t7 = centsToSteps(884.4, edo);
+  }
+
+  const baseTones = [root, t3, t5];
+  if (quality !== 'maj' && quality !== 'min' && quality !== 'dim' && quality !== 'aug') {
+    baseTones.push(t7);
+  }
+
+  // Resolve extensions diatonically to remain perfectly in-key!
+  const extTones = (extensions || []).map(ext => {
+    if (ext === 'M9' || ext === 'm9' || ext === 's9') {
+      return getDiatonicStep(degree, (degree + 1) % 7, tuning) + edo;
+    }
+    if (ext === 'P11' || ext === 's11') {
+      return getDiatonicStep(degree, (degree + 3) % 7, tuning) + edo;
+    }
+    if (ext === 'M13' || ext === 'b13') {
+      return getDiatonicStep(degree, (degree + 5) % 7, tuning) + edo;
+    }
+    return centsToSteps(INTERVAL_CENTS[ext], edo);
+  });
+
+  return baseTones.concat(extTones);
+}
+
 function chordToneSteps(qualityKey, edo, extensions) {
   const base = CHORD_QUALITY_TONES[qualityKey].map(k => centsToSteps(INTERVAL_CENTS[k], edo));
   const ext = (extensions || []).map(k => centsToSteps(INTERVAL_CENTS[k], edo));
@@ -540,19 +608,30 @@ function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap
   return seq;
 }
 function resolveChords(stateIndices, states, tuning, rng, jazzParams) {
+  const semitone_steps = Math.max(1, centsToSteps(100, tuning.edo));
   return stateIndices.map(idx => {
     const st = states[idx];
     let rootSteps = resolveChordRootSteps(idx, states, tuning);
     let quality = st.quality;
     let name = st.name;
     let tritoneSubbed = false;
+
     if (jazzParams.enabled && quality === 'dom7' && rng.next() < jazzParams.tritoneSubChance) {
-      rootSteps += Math.round(tuning.edo / 2);
       tritoneSubbed = true;
       name = 'sub' + name;
+      // Calculate target root steps for smooth downward chromatic-step resolution (tritone sub resolution!)
+      let targetRoot = 0;
+      if (st.isSecondaryDominant) {
+        targetRoot = resolveChordRootSteps(st.secondaryDominantOfIndex, states, tuning);
+      } else {
+        // Standard V7 resolves to tonic (0)
+        targetRoot = 0;
+      }
+      rootSteps = targetRoot + semitone_steps;
     }
+
     const extensions = jazzParams.enabled ? addExtensions(quality, rng, jazzParams.extensionDensity) : [];
-    const toneSteps = chordToneSteps(quality, tuning.edo, extensions);
+    const toneSteps = resolveChordTones(st, tuning, extensions, tritoneSubbed);
     return { name, rootSteps, toneSteps, quality, stateIndex: idx, tritoneSubbed, extensions };
   });
 }
@@ -1108,7 +1187,7 @@ chordEditSelect.addEventListener('change', () => {
   const rootSteps = resolveChordRootSteps(newIdx, currentStates, currentTuning);
   const quality = currentStates[newIdx].quality;
   const ext = EXTENSION_POOLS[quality] ? ['M9'] : [];
-  const toneSteps = chordToneSteps(quality, currentTuning.edo, ext);
+  const toneSteps = resolveChordTones(currentStates[newIdx], currentTuning, ext, false);
   currentChords[editingCellIndex] = { name: currentStates[newIdx].name, rootSteps, toneSteps, quality, stateIndex: newIdx, tritoneSubbed: false, extensions: ext };
   currentStateIndices[editingCellIndex] = newIdx;
   if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = newIdx;
