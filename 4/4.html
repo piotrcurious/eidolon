@@ -252,10 +252,36 @@
       <label>Odd-order drive <span class="val" id="oddVal">0.45</span></label>
       <input type="range" id="oddSlider" min="0" max="1" step="0.01" value="0.45">
     </div>
+    <div class="control">
+      <label>Memory (kernel smear) <span class="val" id="memoryVal">0.40</span></label>
+      <input type="range" id="memorySlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
   </div>
 
   <div class="panel">
-    <h2>5 · Envelope &amp; space</h2>
+    <h2>5 · Spectral evolution</h2>
+    <div class="control">
+      <label>Distribution</label>
+      <select id="distributionSelect">
+        <option value="gaussian" selected>Gaussian — smooth</option>
+        <option value="laplace">Laplacian — jumpier</option>
+        <option value="uniform">Uniform — flat / harsh</option>
+        <option value="cauchy">Cauchy — heavy-tailed lurches</option>
+        <option value="bimodal">Bimodal — flickers between two poles</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Volatility <span class="val" id="volatilityVal">0.35</span></label>
+      <input type="range" id="volatilitySlider" min="0" max="1" step="0.01" value="0.35">
+    </div>
+    <div class="control">
+      <label>Richness / wander <span class="val" id="richnessVal">0.40</span></label>
+      <input type="range" id="richnessSlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>6 · Envelope &amp; space</h2>
     <div class="control">
       <label>Attack <span class="val" id="attackVal">0.27s</span></label>
       <input type="range" id="attackSlider" min="0" max="1" step="0.01" value="0.30">
@@ -704,7 +730,7 @@ function buildHarmonicTemplate(f0, p, sr, formants) {
   const maxAudible = Math.min(nyquist * 0.95, 9000);
   const numHarmonics = clamp(Math.floor(maxAudible / f0), 4, 32);
 
-  const fc0 = 2500; // memory smear removed for simplicity in this version
+  const fc0 = lerp(9000, 250, p.memory);
   const orderGain = { 2: p.evenDrive, 3: p.oddDrive, 4: p.evenDrive * p.evenDrive };
 
   const Hre = new Float64Array(5), Him = new Float64Array(5);
@@ -751,15 +777,24 @@ function buildHarmonicTemplate(f0, p, sr, formants) {
 const SPECTRAL_LEVELS = [0.354, 0.5, 0.707, 1.0, 1.414, 2.0, 2.828];
 const SPECTRAL_CENTER = 3;
 
+const SPECTRAL_KERNELS = {
+  gaussian: { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-(d * d) / (2 * s * s)) },
+  laplace:  { step: (d, s) => Math.exp(-Math.abs(d) / s), pull: (d, s) => Math.exp(-Math.abs(d) / s) },
+  uniform:  { step: (d, s) => (Math.abs(d) <= s ? 1 : 0.05), pull: (d, s) => (Math.abs(d) <= s ? 1 : 0.05) },
+  cauchy:   { step: (d, s) => 1 / (1 + (d / s) * (d / s)), pull: (d, s) => 1 / (1 + (d / s) * (d / s)) },
+  bimodal:  { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-((d - 2) ** 2) / (2 * s * s)) + Math.exp(-((d + 2) ** 2) / (2 * s * s)) },
+};
+
 function buildSpectralImage(rng, template, numFrames, p) {
-  const stepSigma = 1.0;
-  const centerSigma = 1.5;
+  const stepSigma = lerp(0.4, 3.0, p.volatility);
+  const centerSigma = lerp(0.5, 4.0, p.richness);
+  const kernel = SPECTRAL_KERNELS[p.spectralDistribution] || SPECTRAL_KERNELS.gaussian;
   const trans = [];
   for (let i = 0; i < 7; i++) {
     const row = new Float64Array(7); let sum = 0;
     for (let j = 0; j < 7; j++) {
-      const step = Math.exp(-((j - i)**2) / (2 * stepSigma * stepSigma));
-      const pull = Math.exp(-((j - SPECTRAL_CENTER)**2) / (2 * centerSigma * centerSigma));
+      const step = kernel.step(j - i, stepSigma);
+      const pull = kernel.pull(j - SPECTRAL_CENTER, centerSigma);
       row[j] = step * pull; sum += row[j];
     }
     for (let j = 0; j < 7; j++) row[j] /= sum;
@@ -1008,7 +1043,8 @@ const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlide
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
 const formantSelect = $('formantSelect'), customFormantBlock = $('customFormantBlock');
 const f1Slider = $('f1Slider'), f2Slider = $('f2Slider'), f3Slider = $('f3Slider');
-const evenSlider = $('evenSlider'), oddSlider = $('oddSlider');
+const evenSlider = $('evenSlider'), oddSlider = $('oddSlider'), memorySlider = $('memorySlider');
+const volatilitySlider = $('volatilitySlider'), richnessSlider = $('richnessSlider'), distributionSelect = $('distributionSelect');
 const attackSlider = $('attackSlider'), releaseSlider = $('releaseSlider'), brightnessSlider = $('brightnessSlider');
 const spaceSlider = $('spaceSlider'), gainSlider = $('gainSlider');
 const seedInput = $('seedInput'), randSeedBtn = $('randSeedBtn');
@@ -1159,6 +1195,8 @@ function readParams() {
     formantPreset: formantSelect.value,
     customF1: parseFloat(f1Slider.value), customF2: parseFloat(f2Slider.value), customF3: parseFloat(f3Slider.value),
     evenDrive: parseFloat(evenSlider.value), oddDrive: parseFloat(oddSlider.value),
+    memory: parseFloat(memorySlider.value),
+    volatility: parseFloat(volatilitySlider.value), richness: parseFloat(richnessSlider.value), spectralDistribution: distributionSelect.value,
     attack: parseFloat(attackSlider.value), release: parseFloat(releaseSlider.value),
     brightness: parseFloat(brightnessSlider.value), space: parseFloat(spaceSlider.value), gain: parseFloat(gainSlider.value),
     drumCues: { kick: [...drumCues.kick], snare: [...drumCues.snare], hat: [...drumCues.hat] }
