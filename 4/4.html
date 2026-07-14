@@ -54,6 +54,14 @@
 
   .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;padding:4px 20px;}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 18px;}
+  @media (min-width: 1024px) {
+    .panels {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .panel[style*="grid-column"] {
+      grid-column: span 3 !important;
+    }
+  }
   .panel h2{font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:11.5px;letter-spacing:0.1em;color:var(--phosphor);margin:0 0 14px;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:9px;}
   .control{margin-bottom:15px;}
   .control:last-child{margin-bottom:0;}
@@ -130,10 +138,39 @@
 <div class="popover-backdrop" id="chordEditPopover">
   <div class="popover-panel">
     <h3>Edit chord</h3>
-    <div class="popover-row">
+
+    <div class="control">
+      <label>Scale Degree / State</label>
       <select id="chordEditSelect"></select>
     </div>
-    <div class="popover-actions">
+
+    <div class="control" style="margin-top:10px;">
+      <label>Root Transposition (EDO steps)</label>
+      <input type="number" id="chordEditTranspose" value="0" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Quality Override</label>
+      <select id="chordEditQuality">
+        <option value="">(use default for state)</option>
+        <option value="maj">maj</option>
+        <option value="min">min</option>
+        <option value="dim">dim</option>
+        <option value="aug">aug</option>
+        <option value="dom7">dom7</option>
+        <option value="maj7">maj7</option>
+        <option value="min7">min7</option>
+        <option value="m7b5">m7b5</option>
+        <option value="dim7">dim7</option>
+      </select>
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Extensions (comma-separated, e.g. M9, P11)</label>
+      <input type="text" id="chordEditExtensions" placeholder="e.g. M9, P11" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+    </div>
+
+    <div class="popover-actions" style="margin-top:15px;">
       <button type="button" id="chordEditLockBtn">🔓 lock</button>
       <button type="button" id="chordEditClose">Done</button>
     </div>
@@ -236,8 +273,16 @@
         <option value="i">/i/ — see</option>
         <option value="o">/o/ — go</option>
         <option value="u">/u/ — boot</option>
+        <option value="timeline">timeline modulation</option>
         <option value="custom">custom</option>
       </select>
+    </div>
+    <div id="timelineFormantBlock" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+      <div class="control">
+        <label>Formant Timeline (per bar, space-separated)</label>
+        <input type="text" id="formantTimelineInput" value="a e i o u a e i" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Supported: a, e, i, o, u. Modulates vowel per bar.</span>
+      </div>
     </div>
     <div id="customFormantBlock">
       <div class="control"><label>F1 <span class="val" id="f1Val">700</span> Hz</label><input type="range" id="f1Slider" min="200" max="900" step="5" value="700"></div>
@@ -302,6 +347,16 @@
       <label>Output gain <span class="val" id="gainVal">0.80</span></label>
       <input type="range" id="gainSlider" min="0" max="1" step="0.01" value="0.80">
     </div>
+  </div>
+
+  <div class="panel" style="grid-column: span var(--grid-span, 1);">
+    <h2>7 · Contrapoint Note Editor</h2>
+    <div class="control">
+      <label>Surgically Edit Phrase/Bass/Pad Notes (JSON)</label>
+      <textarea id="noteEditorArea" style="width:100%; height:180px; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace; font-size:11px; resize:vertical;" placeholder="No notes loaded. Press Generate first."></textarea>
+      <span style="font-size:10.5px; color:var(--muted); display:block; margin-top:4px;">Directly modify startBeat, durBeats, steps (EDO scale units) to bypass intermediate algorithms.</span>
+    </div>
+    <button type="button" id="updateFromNoteEditorBtn" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:8px 12px; border-radius:4px; border:1px solid var(--border); background:var(--panel2); color:var(--cyan); cursor:pointer; width:100%; margin-top:8px;">⚡ UPDATE WAVEFORM FROM NOTE EDITOR</button>
   </div>
 
 </div>
@@ -775,7 +830,15 @@ const FORMANT_PRESETS = {
   u: [{ freq:320, bw:65,  gain:1 },{ freq:850,  bw:85,  gain:0.5 },{ freq:2250, bw:110, gain:0.28 }],
 };
 
-function getFormants(p) {
+function getFormants(p, beat = 0, secPerBeat = 0.5) {
+  if (p.formantPreset === 'timeline') {
+    const bar = Math.floor(beat / 4);
+    const timelineVowels = (p.formantTimeline || 'a e i o u a e i').toLowerCase().split(/\s+/).filter(Boolean);
+    if (timelineVowels.length > 0) {
+      const activeVowel = timelineVowels[bar % timelineVowels.length];
+      return FORMANT_PRESETS[activeVowel] || FORMANT_PRESETS.a;
+    }
+  }
   if (p.formantPreset === 'custom') {
     return [
       { freq: p.customF1, bw: Math.max(20, p.customF1 * 0.11), gain: 1 },
@@ -1120,7 +1183,7 @@ const styleSelect = $('styleSelect'), jazzBlock = $('jazzBlock');
 const secDomSlider = $('secDomSlider'), tritoneSubSlider = $('tritoneSubSlider'), extensionSlider = $('extensionSlider');
 const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlider = $('tensionSlider');
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
-const formantSelect = $('formantSelect'), customFormantBlock = $('customFormantBlock');
+const formantSelect = $('formantSelect'), customFormantBlock = $('customFormantBlock'), timelineFormantBlock = $('timelineFormantBlock'), formantTimelineInput = $('formantTimelineInput');
 const f1Slider = $('f1Slider'), f2Slider = $('f2Slider'), f3Slider = $('f3Slider');
 const evenSlider = $('evenSlider'), oddSlider = $('oddSlider'), memorySlider = $('memorySlider');
 const volatilitySlider = $('volatilitySlider'), richnessSlider = $('richnessSlider'), distributionSelect = $('distributionSelect');
@@ -1170,6 +1233,8 @@ Object.keys(drumCues).forEach(instr => {
 function openChordEditor(cellIndex) {
   if (!currentStates || !currentChords) return;
   editingCellIndex = cellIndex;
+
+  // Populate state/degree selector
   chordEditSelect.innerHTML = '';
   currentStates.forEach((st, idx) => {
     const o = document.createElement('option');
@@ -1178,22 +1243,55 @@ function openChordEditor(cellIndex) {
     if (idx === currentChords[cellIndex].stateIndex) o.selected = true;
     chordEditSelect.appendChild(o);
   });
+
+  // Populate transposition, quality, and extensions from the active chord
+  const activeChord = currentChords[cellIndex];
+  const defaultRoot = resolveChordRootSteps(activeChord.stateIndex, currentStates, currentTuning);
+  $('chordEditTranspose').value = activeChord.rootSteps - defaultRoot;
+  $('chordEditQuality').value = activeChord.qualityOverride || "";
+  $('chordEditExtensions').value = (activeChord.extensions || []).join(", ");
+
   chordEditLockBtn.textContent = lockedSlots[cellIndex] !== undefined ? '\u{1F512} locked' : '\u{1F513} lock';
   chordEditPopover.classList.add('open');
 }
-chordEditSelect.addEventListener('change', () => {
+
+function saveChordFromEditor() {
   if (editingCellIndex === null) return;
-  const newIdx = parseInt(chordEditSelect.value);
-  const rootSteps = resolveChordRootSteps(newIdx, currentStates, currentTuning);
-  const quality = currentStates[newIdx].quality;
-  const ext = EXTENSION_POOLS[quality] ? ['M9'] : [];
-  const toneSteps = resolveChordTones(currentStates[newIdx], currentTuning, ext, false);
-  currentChords[editingCellIndex] = { name: currentStates[newIdx].name, rootSteps, toneSteps, quality, stateIndex: newIdx, tritoneSubbed: false, extensions: ext };
-  currentStateIndices[editingCellIndex] = newIdx;
-  if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = newIdx;
+  const stateIdx = parseInt(chordEditSelect.value);
+  const trans = parseInt($('chordEditTranspose').value) || 0;
+  const qualOverride = $('chordEditQuality').value;
+  const extStr = $('chordEditExtensions').value;
+  const ext = extStr.split(',').map(s => s.trim()).filter(Boolean);
+
+  const defaultRoot = resolveChordRootSteps(stateIdx, currentStates, currentTuning);
+  const rootSteps = defaultRoot + trans;
+  const baseState = currentStates[stateIdx];
+
+  // Construct dummy state if quality override is used
+  const targetState = qualOverride ? Object.assign({}, baseState, { quality: qualOverride }) : baseState;
+  const toneSteps = resolveChordTones(targetState, currentTuning, ext, false);
+
+  currentChords[editingCellIndex] = {
+    name: baseState.name + (qualOverride ? `(${qualOverride})` : '') + (trans !== 0 ? (trans > 0 ? `+${trans}` : trans) : ''),
+    rootSteps,
+    toneSteps,
+    quality: qualOverride || baseState.quality,
+    qualityOverride: qualOverride || undefined,
+    stateIndex: stateIdx,
+    tritoneSubbed: false,
+    extensions: ext
+  };
+  currentStateIndices[editingCellIndex] = stateIdx;
+  if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = stateIdx;
+
   renderProgressionStrip(currentChords);
   reRenderFromEditedProgression();
-});
+}
+
+chordEditSelect.addEventListener('change', saveChordFromEditor);
+$('chordEditTranspose').addEventListener('change', saveChordFromEditor);
+$('chordEditQuality').addEventListener('change', saveChordFromEditor);
+$('chordEditExtensions').addEventListener('change', saveChordFromEditor);
 chordEditLockBtn.addEventListener('click', () => {
   if (editingCellIndex === null) return;
   if (lockedSlots[editingCellIndex] !== undefined) delete lockedSlots[editingCellIndex];
@@ -1240,7 +1338,10 @@ document.querySelectorAll('input[type=range]').forEach(el => {
 attackSlider.addEventListener('input', () => { $('attackVal').textContent = mapAttackSec(parseFloat(attackSlider.value)).toFixed(2) + 's'; });
 releaseSlider.addEventListener('input', () => { $('releaseVal').textContent = mapReleaseSec(parseFloat(releaseSlider.value)).toFixed(2) + 's'; });
 customEdoInput.addEventListener('input', () => { $('customEdoVal').textContent = clamp(parseInt(customEdoInput.value) || 12, 5, 72); });
-formantSelect.addEventListener('change', () => { customFormantBlock.style.display = formantSelect.value === 'custom' ? 'block' : 'none'; });
+formantSelect.addEventListener('change', () => {
+  customFormantBlock.style.display = formantSelect.value === 'custom' ? 'block' : 'none';
+  timelineFormantBlock.style.display = formantSelect.value === 'timeline' ? 'block' : 'none';
+});
 tuningSelect.addEventListener('change', () => { customTuningBlock.style.display = tuningSelect.value === 'custom' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
 styleSelect.addEventListener('change', () => { jazzBlock.style.display = styleSelect.value === 'jazz' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
 modeSelect.addEventListener('change', clearLocksAndRegenerateHint);
@@ -1272,6 +1373,7 @@ function readParams() {
     leapProbability: parseFloat(leapSlider.value),
     density: parseFloat(densitySlider.value),
     formantPreset: formantSelect.value,
+    formantTimeline: formantTimelineInput.value,
     customF1: parseFloat(f1Slider.value), customF2: parseFloat(f2Slider.value), customF3: parseFloat(f3Slider.value),
     evenDrive: parseFloat(evenSlider.value), oddDrive: parseFloat(oddSlider.value),
     memory: parseFloat(memorySlider.value),
@@ -1296,13 +1398,15 @@ function ensureAudioContext() {
 }
 
 async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx) {
-  const { bufL, bufR, sr, secPerBeat, formants, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
+  const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
   let i = 0;
   for (const note of notes) {
     const startSample = Math.round(note.startBeat * secPerBeat * sr);
     const durSamples = Math.max(1, Math.round(note.durBeats * secPerBeat * sr));
     const f0 = stepsToFreq(note.steps, tonicFreq, edo);
-    const template = buildHarmonicTemplate(f0, p, sr, formants);
+    // Dynamically retrieve formants per-note to support timeline modulation
+    const noteFormants = getFormants(p, note.startBeat, secPerBeat);
+    const template = buildHarmonicTemplate(f0, p, sr, noteFormants);
     const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
     const image = buildSpectralImage(rng, template, numFrames, p);
     const pan = panFn(note);
@@ -1351,6 +1455,9 @@ async function doGenerate(p, onProgress) {
   return await renderFromChords(chords, p, tuning, voiceRng, onProgress);
 }
 
+// Global reference for surgically edited notes
+let surgicallyEditedNotes = null;
+
 async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const sr = pieceSampleRate;
   const beatsPerBar = 4;
@@ -1366,9 +1473,20 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
 
   const tonicFreq = 440 * Math.pow(2, (48 + p.rootPC - 69) / 12); 
 
-  const leadNotes = generatePhrase(voiceRng, chords, beatsPerBar, p, tuning);
-  const { padNotes, bassNotes } = generateBassPad(chords, beatsPerBar, tuning, p, voiceRng);
-  const formants = getFormants(p);
+  let leadNotes, padNotes, bassNotes;
+  if (surgicallyEditedNotes) {
+    leadNotes = surgicallyEditedNotes.leadNotes || [];
+    padNotes = surgicallyEditedNotes.padNotes || [];
+    bassNotes = surgicallyEditedNotes.bassNotes || [];
+  } else {
+    leadNotes = generatePhrase(voiceRng, chords, beatsPerBar, p, tuning);
+    const generatedPads = generateBassPad(chords, beatsPerBar, tuning, p, voiceRng);
+    padNotes = generatedPads.padNotes;
+    bassNotes = generatedPads.bassNotes;
+
+    // Update notes editor display
+    $('noteEditorArea').value = JSON.stringify({ leadNotes, padNotes, bassNotes }, null, 2);
+  }
 
   const FRAME_HOP_SEC = 0.025;
   const frameHopSamples = Math.max(1, Math.round(FRAME_HOP_SEC * sr));
@@ -1377,7 +1495,7 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const totalFrames = Math.ceil(totalSamples / frameHopSamples) + 1;
   const vizImage = Array.from({ length: totalFrames }, () => new Float32Array(vizMaxHarm + 1));
 
-  const ctx = { bufL, bufR, sr, secPerBeat, formants, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
+  const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
   const padPans = [-0.55, 0.2, 0.55, -0.15];
 
   onProgress('rendering lead…');
@@ -1436,6 +1554,7 @@ generateBtn.addEventListener('click', async () => {
   generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
   statusLine.textContent = 'generating structure…';
   try {
+    surgicallyEditedNotes = null; // Reset surgical edits on full generation
     const p = readParams();
     await new Promise(r => setTimeout(r, 10)); // let the disabled/status state paint first
     const secs = await doGenerate(p, msg => { statusLine.textContent = msg; });
@@ -1446,6 +1565,35 @@ generateBtn.addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     statusLine.textContent = 'error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+
+$('updateFromNoteEditorBtn').addEventListener('click', async () => {
+  ensureAudioContext();
+  stopPlayback();
+  try {
+    const rawJson = $('noteEditorArea').value;
+    const parsed = JSON.parse(rawJson);
+    if (!parsed.leadNotes || !parsed.padNotes || !parsed.bassNotes) {
+      throw new Error('JSON must contain leadNotes, padNotes, and bassNotes arrays.');
+    }
+    surgicallyEditedNotes = parsed;
+
+    generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
+    statusLine.textContent = 're-synthesizing from surgical note edits…';
+
+    const p = lastFullParams || readParams();
+    const voiceRng = new RNG((p.seed ^ 0x9E3779B9 ^ 0xA5A5A5) >>> 0);
+    const secs = await renderFromChords(currentChords, p, currentTuning, voiceRng, msg => { statusLine.textContent = msg; });
+    statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — surgically edited';
+    playBtn.disabled = false; exportBtn.disabled = false;
+    playAudio();
+    stopBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    alert('Failed to parse or apply Note Editor changes: ' + err.message);
   } finally {
     generateBtn.disabled = false;
   }
