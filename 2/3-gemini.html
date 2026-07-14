@@ -1,0 +1,1417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EIDOLON — top-down synthesizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0A0C10;
+    --panel:#13161D;
+    --panel2:#181C25;
+    --border:#262B36;
+    --phosphor:#E8A33D;
+    --phosphor-dim:#8a6323;
+    --cyan:#52D6C6;
+    --ink:#D6D9E0;
+    --muted:#6B7280;
+    --warn:#C4544A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--void);color:var(--ink);font-family:'IBM Plex Mono',monospace;-webkit-font-smoothing:antialiased;}
+  ::selection{background:var(--phosphor-dim);color:#fff;}
+  button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+  .hero{padding:22px 20px 0;}
+  .hero-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;}
+  .brand h1{font-family:'Space Mono',monospace;font-size:clamp(26px,6vw,36px);letter-spacing:0.07em;margin:0;color:var(--ink);text-shadow:0 0 22px rgba(232,163,61,0.28);}
+  .tagline{margin:6px 0 0;color:var(--muted);font-size:12.5px;letter-spacing:0.02em;}
+  .seed-block{display:flex;align-items:center;gap:6px;}
+  .seed-block label{font-size:10.5px;color:var(--muted);letter-spacing:0.1em;margin-right:2px;}
+  .seed-block input{width:112px;background:var(--panel);border:1px solid var(--border);color:var(--ink);padding:8px 9px;border-radius:4px;font-family:inherit;font-size:13px;}
+  .seed-block button{background:var(--panel);border:1px solid var(--border);color:var(--phosphor);padding:8px 11px;border-radius:4px;cursor:pointer;font-size:14px;}
+  .seed-block button:hover{border-color:var(--phosphor);}
+
+  .pipeline{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:18px;padding:12px 14px;background:var(--panel);border:1px solid var(--border);border-radius:6px;font-size:10.5px;letter-spacing:0.04em;color:var(--muted);}
+  .pipeline span:not(.arrow){color:var(--ink);white-space:nowrap;}
+  .pipeline .arrow{color:var(--phosphor);}
+  .pipeline em{color:var(--cyan);font-style:normal;}
+
+  .progression-strip{display:flex;flex-wrap:wrap;gap:6px;padding:16px 20px 0;}
+  .chord-cell{display:flex;flex-direction:column;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:6px 11px;min-width:40px;cursor:pointer;}
+  .chord-cell.anchor{border-color:var(--phosphor-dim);}
+  .chord-idx{font-size:9px;color:var(--muted);}
+  .chord-name{font-family:'Space Mono',monospace;font-size:14px;color:var(--ink);margin-top:2px;}
+  .chord-cell.anchor .chord-name{color:var(--phosphor);}
+  .chord-cell.locked{border-color:var(--cyan);}
+  .chord-cell:hover{border-color:var(--phosphor);}
+  .empty-strip{color:var(--muted);font-size:12px;padding:4px 0;}
+
+  .spectral-section{padding:16px 20px;}
+  .spectral-label{font-size:10.5px;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;text-transform:uppercase;}
+  .spectral-label .dim{color:var(--muted);text-transform:none;letter-spacing:0;}
+  #spectralCanvas{width:100%;min-height:120px;display:block;background:var(--void);border:1px solid var(--border);border-radius:6px;image-rendering:pixelated;}
+
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;padding:4px 20px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 18px;}
+  .panel h2{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:0.1em;color:var(--phosphor);margin:0 0 14px;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:9px;}
+  .control{margin-bottom:15px;}
+  .control:last-child{margin-bottom:0;}
+  .control label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:0.03em;}
+  .control label .val{color:var(--cyan);font-weight:600;text-transform:none;letter-spacing:0;}
+  .row2{display:flex;gap:8px;}
+  select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--ink);padding:8px 9px;border-radius:4px;font-family:inherit;font-size:13px;}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;background:var(--border);border-radius:2px;outline:none;margin:0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--phosphor);box-shadow:0 0 9px rgba(232,163,61,0.65);cursor:pointer;border:2px solid var(--void);}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--phosphor);box-shadow:0 0 9px rgba(232,163,61,0.65);cursor:pointer;border:2px solid var(--void);}
+
+  #customFormantBlock, .subblock{display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);}
+
+  /* Drum Machine Styles */
+  .drum-machine { display: flex; flex-direction: column; gap: 10px; }
+  .drum-row { display: flex; align-items: center; gap: 8px; }
+  .drum-label { width: 45px; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+  .drum-steps { display: flex; gap: 4px; flex: 1; }
+  .drum-step { flex: 1; aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; }
+  .drum-step:nth-child(4n) { margin-right: 4px; }
+  .drum-step.active { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(82, 214, 198, 0.4); }
+
+  .popover-backdrop{position:fixed;inset:0;background:rgba(10,12,16,0.6);z-index:40;display:none;align-items:flex-end;justify-content:center;}
+  .popover-backdrop.open{display:flex;}
+  .popover-panel{background:var(--panel);border:1px solid var(--border);border-radius:10px 10px 0 0;padding:18px 20px 24px;width:100%;max-width:480px;}
+  .popover-panel h3{margin:0 0 14px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:0.1em;color:var(--phosphor);text-transform:uppercase;}
+  .popover-row{display:flex;gap:10px;margin-bottom:12px;}
+  .popover-row select{flex:1;}
+  .popover-actions{display:flex;gap:10px;justify-content:flex-end;}
+  .popover-actions button{font-family:'Space Mono',monospace;font-size:11.5px;padding:9px 14px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--ink);cursor:pointer;}
+
+  .transport{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 20px 30px;}
+  .transport button{font-family:'Space Mono',monospace;font-size:11.5px;letter-spacing:0.07em;padding:11px 17px;border-radius:5px;border:1px solid var(--border);background:var(--panel);color:var(--ink);cursor:pointer;}
+  .transport button:hover:not(:disabled){border-color:var(--cyan);}
+  #generateBtn{border-color:var(--phosphor-dim);color:var(--phosphor);}
+  #generateBtn:hover{border-color:var(--phosphor);}
+  .transport button:disabled{opacity:0.35;cursor:not-allowed;}
+  .status{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap;}
+
+  footer{padding:6px 20px 26px;color:var(--muted);font-size:10.5px;line-height:1.6;}
+  footer b{color:var(--muted);}
+
+  @media (max-width:560px){
+    .panels{grid-template-columns:1fr;}
+    .status{margin-left:0;width:100%;}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-top">
+    <div class="brand">
+      <h1>EIDOLON</h1>
+      <p class="tagline">a top-down synthesizer — form precedes sound</p>
+    </div>
+    <div class="seed-block">
+      <label>SEED</label>
+      <input type="number" id="seedInput" value="104729">
+      <button id="randSeedBtn" title="Randomize seed">⟲</button>
+    </div>
+  </div>
+  <div class="pipeline">
+    <span>PROGRESSION</span><span class="arrow">→</span><span>PHRASE</span><span class="arrow">→</span><span>FORMANT + VOLTERRA TEMPLATE</span><span class="arrow">→</span><span>SPECTRAL IMAGE <em>(markov)</em></span><span class="arrow">→</span><span>WAVEFORM</span>
+  </div>
+</header>
+
+<section class="progression-strip" id="progressionStrip">
+  <div class="empty-strip">— press GENERATE to derive a progression —</div>
+</section>
+
+<div class="popover-backdrop" id="chordEditPopover">
+  <div class="popover-panel">
+    <h3>Edit chord</h3>
+    <div class="popover-row">
+      <select id="chordEditSelect"></select>
+    </div>
+    <div class="popover-actions">
+      <button type="button" id="chordEditLockBtn">🔓 lock</button>
+      <button type="button" id="chordEditClose">Done</button>
+    </div>
+  </div>
+</div>
+
+<section class="spectral-section">
+  <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— lead voice · harmonic index (↑) × time (→) · Markov-evolved amplitude</span></div>
+  <canvas id="spectralCanvas"></canvas>
+</section>
+
+<div class="panels">
+
+  <div class="panel">
+    <h2>1 · Progression</h2>
+    <div class="control">
+      <label>Key</label>
+      <div class="row2">
+        <select id="rootSelect"></select>
+        <select id="modeSelect">
+          <option value="minor" selected>Minor</option>
+          <option value="major">Major</option>
+        </select>
+      </div>
+    </div>
+    <div class="control">
+      <label>Tuning</label>
+      <select id="tuningSelect"></select>
+    </div>
+    <div id="customTuningBlock" class="subblock">
+      <div class="control"><label>Custom EDO <span class="val" id="customEdoVal">12</span></label>
+        <input type="number" id="customEdoInput" min="5" max="72" step="1" value="12"></div>
+    </div>
+    <div class="control">
+      <label>Style</label>
+      <select id="styleSelect">
+        <option value="triads">Triads (classical)</option>
+        <option value="jazz" selected>Jazz (7ths + walking bass)</option>
+      </select>
+    </div>
+    <div id="jazzBlock" class="subblock" style="display:block;">
+      <div class="control">
+        <label>Secondary dominants <span class="val" id="secDomVal">0.40</span></label>
+        <input type="range" id="secDomSlider" min="0" max="1" step="0.01" value="0.40">
+      </div>
+      <div class="control">
+        <label>Tritone substitution <span class="val" id="tritoneSubVal">0.25</span></label>
+        <input type="range" id="tritoneSubSlider" min="0" max="1" step="0.01" value="0.25">
+      </div>
+      <div class="control">
+        <label>Extensions <span class="val" id="extensionVal">0.55</span></label>
+        <input type="range" id="extensionSlider" min="0" max="1" step="0.01" value="0.55">
+      </div>
+    </div>
+    <div class="control">
+      <label>Tempo <span class="val" id="tempoVal">88</span> BPM</label>
+      <input type="range" id="tempoSlider" min="60" max="160" step="1" value="88">
+    </div>
+    <div class="control">
+      <label>Bars <span class="val" id="barsVal">8</span></label>
+      <input type="range" id="barsSlider" min="4" max="32" step="1" value="8">
+    </div>
+    <div class="control">
+      <label>Tension / chromaticism <span class="val" id="tensionVal">0.18</span></label>
+      <input type="range" id="tensionSlider" min="0" max="1" step="0.01" value="0.18">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2 · Phrase</h2>
+    <div class="control">
+      <label>Leap bias <span class="val" id="leapVal">0.30</span></label>
+      <input type="range" id="leapSlider" min="0" max="1" step="0.01" value="0.30">
+    </div>
+    <div class="control">
+      <label>Rhythmic density <span class="val" id="densityVal">0.50</span></label>
+      <input type="range" id="densitySlider" min="0" max="1" step="0.01" value="0.50">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3 · Formant</h2>
+    <div class="control">
+      <label>Vowel preset</label>
+      <select id="formantSelect">
+        <option value="a">/a/ — father</option>
+        <option value="e">/e/ — say</option>
+        <option value="i">/i/ — see</option>
+        <option value="o">/o/ — go</option>
+        <option value="u">/u/ — boot</option>
+        <option value="custom">custom</option>
+      </select>
+    </div>
+    <div id="customFormantBlock">
+      <div class="control"><label>F1 <span class="val" id="f1Val">700</span> Hz</label><input type="range" id="f1Slider" min="200" max="900" step="5" value="700"></div>
+      <div class="control"><label>F2 <span class="val" id="f2Val">1200</span> Hz</label><input type="range" id="f2Slider" min="700" max="2600" step="10" value="1200"></div>
+      <div class="control"><label>F3 <span class="val" id="f3Val">2600</span> Hz</label><input type="range" id="f3Slider" min="1800" max="3600" step="10" value="2600"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4 · Volterra</h2>
+    <div class="control">
+      <label>Even-order drive <span class="val" id="evenVal">0.35</span></label>
+      <input type="range" id="evenSlider" min="0" max="1" step="0.01" value="0.35">
+    </div>
+    <div class="control">
+      <label>Odd-order drive <span class="val" id="oddVal">0.45</span></label>
+      <input type="range" id="oddSlider" min="0" max="1" step="0.01" value="0.45">
+    </div>
+    <div class="control">
+      <label>Memory (kernel smear) <span class="val" id="memoryVal">0.40</span></label>
+      <input type="range" id="memorySlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>5 · Rhythm Cues</h2>
+    <div class="drum-machine" id="drumMachineUI">
+      </div>
+    <div class="control" style="margin-top:15px;">
+      <label>Drum Volume <span class="val" id="drumVolVal">0.40</span></label>
+      <input type="range" id="drumVolSlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>6 · Envelope &amp; space</h2>
+    <div class="control">
+      <label>Attack <span class="val" id="attackVal">0.27s</span></label>
+      <input type="range" id="attackSlider" min="0" max="1" step="0.01" value="0.30">
+    </div>
+    <div class="control">
+      <label>Release <span class="val" id="releaseVal">0.91s</span></label>
+      <input type="range" id="releaseSlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+    <div class="control">
+      <label>Brightness <span class="val" id="brightnessVal">0.45</span></label>
+      <input type="range" id="brightnessSlider" min="0" max="1" step="0.01" value="0.45">
+    </div>
+    <div class="control">
+      <label>Space (reverb) <span class="val" id="spaceVal">0.28</span></label>
+      <input type="range" id="spaceSlider" min="0" max="1" step="0.01" value="0.28">
+    </div>
+    <div class="control">
+      <label>Output gain <span class="val" id="gainVal">0.80</span></label>
+      <input type="range" id="gainSlider" min="0" max="1" step="0.01" value="0.80">
+    </div>
+  </div>
+
+</div>
+
+<div class="transport">
+  <button id="generateBtn">GENERATE</button>
+  <button id="playBtn" disabled>▶ PLAY</button>
+  <button id="stopBtn" disabled>■ STOP</button>
+  <button id="exportBtn" disabled>⇩ EXPORT WAV</button>
+  <div class="status" id="statusLine">seed a progression to begin</div>
+</div>
+
+<footer>
+  <b>Signal path:</b> a seeded Markov chain drives chord function → a second Markov chain generates the lead phrase over that progression → each note's harmonic template comes from a truncated Volterra memory-polynomial shaped by a formant envelope → a per-harmonic Markov chain evolves that into the spectral image shown above → additive resynthesis renders the waveform.
+</footer>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   1. UTILITIES — seeded RNG, math helpers, sine LUT
+   ========================================================================= */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+class RNG {
+  constructor(seed) { this.seed = seed >>> 0; this._f = mulberry32(this.seed); }
+  next() { return this._f(); }
+  range(a, b) { return a + this.next() * (b - a); }
+  weightedIndex(weights) {
+    let total = 0;
+    for (let i = 0; i < weights.length; i++) total += weights[i];
+    if (!(total > 0)) return 0;
+    let r = this.next() * total;
+    for (let i = 0; i < weights.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return i;
+    }
+    return weights.length - 1;
+  }
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function normalizeRows(rows) {
+  return rows.map(row => {
+    let sum = 0;
+    for (const v of row) sum += v;
+    return row.map(v => v / sum);
+  });
+}
+function buildChromaticMatrix(n, boostIdx, boostAmt) {
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const row = new Array(n);
+    for (let j = 0; j < n; j++) row[j] = (j === i ? 0.4 : 1.0) + (boostIdx.includes(j) ? boostAmt : 0);
+    rows.push(row);
+  }
+  return rows;
+}
+
+const SINE_TABLE_SIZE = 4096;
+const SINE_TABLE = new Float32Array(SINE_TABLE_SIZE);
+for (let i = 0; i < SINE_TABLE_SIZE; i++) SINE_TABLE[i] = Math.sin(2 * Math.PI * i / SINE_TABLE_SIZE);
+const SINE_SHIFT = SINE_TABLE_SIZE >> 2;
+function lutCos(phase) {
+  let p = (phase / (2 * Math.PI)) % 1;
+  if (p < 0) p += 1;
+  const idxF = p * SINE_TABLE_SIZE;
+  const i0 = idxF | 0;
+  const i1 = (i0 + 1) % SINE_TABLE_SIZE;
+  const frac = idxF - i0;
+  const j0 = (i0 + SINE_SHIFT) % SINE_TABLE_SIZE;
+  const j1 = (i1 + SINE_SHIFT) % SINE_TABLE_SIZE;
+  return SINE_TABLE[j0] * (1 - frac) + SINE_TABLE[j1] * frac;
+}
+
+/* =========================================================================
+   2. MUSIC THEORY — microtonal tuning systems, JI-ratio chord qualities,
+      and a jazz-capable harmonic-function vocabulary
+   ========================================================================= */
+
+const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+
+const TUNING_SYSTEMS = {
+  12: '12-EDO (standard)', 17: '17-EDO', 19: '19-EDO', 22: '22-EDO',
+  24: '24-EDO (quarter-tone)', 31: '31-EDO (meantone)', 41: '41-EDO', 53: '53-EDO (near-just)',
+};
+
+function generateDiatonicMOS(edo) {
+  const generatorSteps = Math.round(edo * Math.log2(3 / 2));
+  const start = ((0 - generatorSteps) % edo + edo) % edo;
+  const notes = []; let acc = start;
+  for (let i = 0; i < 7; i++) { notes.push(acc); acc = (acc + generatorSteps) % edo; }
+  return { generatorSteps, scale: notes.sort((a, b) => a - b) };
+}
+function rotateMOSToMode(mosScale, edo, modeRotation) {
+  const anchor = mosScale[modeRotation];
+  const rotated = [];
+  for (let i = 0; i < 7; i++) rotated.push(((mosScale[(modeRotation + i) % 7] - anchor) % edo + edo) % edo);
+  return rotated.sort((a, b) => a - b);
+}
+function buildTuning(edo, modeRotation) {
+  const { generatorSteps, scale: ionianScale } = generateDiatonicMOS(edo);
+  const scale = modeRotation === 0 ? ionianScale : rotateMOSToMode(ionianScale, edo, modeRotation);
+  const steps = [];
+  for (let i = 0; i < 7; i++) { const next = scale[(i + 1) % 7] + (i === 6 ? edo : 0); steps.push(next - scale[i]); }
+  return { edo, generatorSteps, scale, smallStep: Math.min(...steps), largeStep: Math.max(...steps) };
+}
+
+const INTERVAL_CENTS = {
+  R: 0, m3: 315.6, M3: 386.3, P4: 498.0, TT: 600.0, P5: 702.0,
+  m6: 813.7, M6: 884.4, m7: 968.8, M7: 1088.3,
+  m9: 1300.0, M9: 1403.9, s9: 1515.6, P11: 1698.0, s11: 1751.3, M13: 2084.4, b13: 2013.7,
+};
+const CHORD_QUALITY_TONES = {
+  maj: ['R','M3','P5'], min: ['R','m3','P5'], dim: ['R','m3','TT'], aug: ['R','M3','m6'],
+  dom7: ['R','M3','P5','m7'], maj7: ['R','M3','P5','M7'], min7: ['R','m3','P5','m7'],
+  m7b5: ['R','m3','TT','m7'], dim7: ['R','m3','TT','M6'],
+};
+function centsToSteps(cents, edo) { return Math.round(cents / 1200 * edo); }
+function chordToneSteps(qualityKey, edo, extensions) {
+  const base = CHORD_QUALITY_TONES[qualityKey].map(k => centsToSteps(INTERVAL_CENTS[k], edo));
+  const ext = (extensions || []).map(k => centsToSteps(INTERVAL_CENTS[k], edo));
+  return base.concat(ext);
+}
+
+const EXTENSION_POOLS = {
+  dom7: [['M9','m9','s9'], ['s11'], ['M13','b13']],
+  maj7: [['M9'], ['s11'], ['M13']],
+  min7: [['M9'], ['P11'], ['M13']],
+  m7b5: [['M9']],
+};
+function addExtensions(qualityKey, rng, density) {
+  const groups = EXTENSION_POOLS[qualityKey] || [];
+  const chosen = [];
+  for (const group of groups) {
+    if (rng.next() < density) {
+      const idx = group.length === 1 ? 0 : rng.weightedIndex(group.map((_, i) => i === 0 ? 2 : 1));
+      chosen.push(group[idx]);
+    }
+  }
+  return chosen;
+}
+
+const MAJOR_STATE_DEFS = [
+  { name:'I', numeral:'I', degree:0, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'ii', numeral:'ii', degree:1, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'iii', numeral:'iii', degree:2, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'IV', numeral:'IV', degree:3, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'V7', numeral:'V', degree:4, chromaticShift:0, triadQ:'dom7',jazzQ:'dom7' },
+  { name:'vi', numeral:'vi', degree:5, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'vii°', numeral:'vii°', degree:6, chromaticShift:0, triadQ:'dim', jazzQ:'m7b5' },
+  { name:'bVII', numeral:'bVII', degree:6, chromaticShift:-1, triadQ:'maj', jazzQ:'dom7' },
+  { name:'iv', numeral:'iv', degree:3, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+];
+const MINOR_STATE_DEFS = [
+  { name:'i', numeral:'i', degree:0, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'ii°', numeral:'ii°', degree:1, chromaticShift:0, triadQ:'dim', jazzQ:'m7b5' },
+  { name:'III', numeral:'III', degree:2, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'iv', numeral:'iv', degree:3, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'V7', numeral:'V', degree:4, chromaticShift:0, triadQ:'dom7',jazzQ:'dom7' },
+  { name:'VI', numeral:'VI', degree:5, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'vii°', numeral:'vii°', degree:6, chromaticShift:1, triadQ:'dim', jazzQ:'m7b5' },
+  { name:'VII', numeral:'VII', degree:6, chromaticShift:0, triadQ:'maj', jazzQ:'dom7' },
+  { name:'IV', numeral:'IV', degree:3, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+];
+const MAJOR_CONSONANT_BASE = [
+  [1,2,1,3,4,2,0,0,0],[1,0,0,1,5,1,1,0,0],[2,1,0,2,0,3,0,0,0],[3,2,1,0,4,0,1,0,0],
+  [5,0,1,1,0,2,0,0,0],[1,3,0,3,2,0,0,0,0],[5,0,1,0,1,0,0,0,0],[2,0,0,2,2,1,0,0,0],[2,0,0,0,2,1,0,1,0],
+];
+const MINOR_CONSONANT_BASE = [
+  [1,2,2,3,4,2,0,0,0],[4,0,1,1,3,0,0,0,0],[1,1,0,2,0,3,0,0,0],[3,1,1,0,4,0,1,0,0],
+  [6,0,1,0,0,2,0,0,0],[1,3,0,3,2,0,0,0,0],[5,0,1,0,1,0,0,0,0],[1,0,1,2,1,3,0,0,0],[2,1,0,0,3,0,0,0,1],
+];
+const MAJOR_SECONDARY_TARGETS = [1, 2, 3, 4, 5];
+const MINOR_SECONDARY_TARGETS = [2, 3, 4, 5, 7];
+
+function buildStateList(baseDefs, secondaryTargets, jazzEnabled) {
+  const states = baseDefs.map(d => ({
+    name: d.name, numeral: d.numeral, degree: d.degree, chromaticShift: d.chromaticShift || 0,
+    quality: jazzEnabled ? d.jazzQ : d.triadQ, isSecondaryDominant: false,
+  }));
+  if (jazzEnabled) {
+    secondaryTargets.forEach(targetIdx => {
+      states.push({ name: 'V7/' + baseDefs[targetIdx].numeral, secondaryDominantOfIndex: targetIdx, quality: 'dom7', isSecondaryDominant: true });
+    });
+  }
+  return states;
+}
+function buildProgressionMatrices(baseConsonantRaw, numBase, secondaryTargets, jazzEnabled, secDomWeight) {
+  const n = jazzEnabled ? numBase + secondaryTargets.length : numBase;
+  const consonant = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < numBase; i++) for (let j = 0; j < numBase; j++) consonant[i][j] = baseConsonantRaw[i][j];
+  if (jazzEnabled) {
+    secondaryTargets.forEach((targetIdx, k) => {
+      const stateIdx = numBase + k;
+      consonant[stateIdx][targetIdx] = 8;
+      for (let j = 0; j < numBase; j++) if (j !== targetIdx) consonant[stateIdx][j] = 0.15;
+      for (let i = 0; i < numBase; i++) if (i !== targetIdx) consonant[i][stateIdx] = secDomWeight;
+    });
+  }
+  const chromatic = buildChromaticMatrix(n, [7, 8], 1.8);
+  return { consonant: normalizeRows(consonant), chromatic: normalizeRows(chromatic), size: n };
+}
+function resolveChordRootSteps(stateIdx, states, tuning) {
+  const st = states[stateIdx];
+  if (st.isSecondaryDominant) return resolveChordRootSteps(st.secondaryDominantOfIndex, states, tuning) + tuning.generatorSteps;
+  return tuning.scale[st.degree] + (st.chromaticShift || 0) * tuning.smallStep;
+}
+
+function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap) {
+  const n = matrices.size;
+  const seq = new Array(numChords);
+  seq[0] = (lockedMap && lockedMap[0] !== undefined) ? lockedMap[0] : 0;
+  for (let i = 1; i < numChords; i++) {
+    if (lockedMap && lockedMap[i] !== undefined) { seq[i] = lockedMap[i]; continue; }
+    const prev = seq[i - 1];
+    const row = new Float64Array(n);
+    for (let j = 0; j < n; j++) row[j] = (1 - tension) * matrices.consonant[prev][j] + tension * matrices.chromatic[prev][j];
+    seq[i] = rng.weightedIndex(row);
+  }
+  if (numChords > 1 && !(lockedMap && lockedMap[numChords - 1] !== undefined)) seq[numChords - 1] = 0;
+  return seq;
+}
+function resolveChords(stateIndices, states, tuning, rng, jazzParams) {
+  return stateIndices.map(idx => {
+    const st = states[idx];
+    let rootSteps = resolveChordRootSteps(idx, states, tuning);
+    let quality = st.quality;
+    let name = st.name;
+    let tritoneSubbed = false;
+    if (jazzParams.enabled && quality === 'dom7' && rng.next() < jazzParams.tritoneSubChance) {
+      rootSteps += Math.round(tuning.edo / 2);
+      tritoneSubbed = true;
+      name = 'sub' + name;
+    }
+    const extensions = jazzParams.enabled ? addExtensions(quality, rng, jazzParams.extensionDensity) : [];
+    const toneSteps = chordToneSteps(quality, tuning.edo, extensions);
+    return { name, rootSteps, toneSteps, quality, stateIndex: idx, tritoneSubbed, extensions };
+  });
+}
+
+/* =========================================================================
+   3. PHRASE & BASS GENERATION
+   ========================================================================= */
+
+const LEAD_OCTAVES = 2, PAD_OCTAVES = 1, BASS_OCTAVES = -1;
+const DEGREE_LO = -6, DEGREE_HI = 13;
+
+function degreeIndexToSteps(degreeIndex, tuning) {
+  const len = tuning.scale.length;
+  const octave = Math.floor(degreeIndex / len);
+  const within = ((degreeIndex % len) + len) % len;
+  return octave * tuning.edo + tuning.scale[within];
+}
+function nearestChordToneSteps(rawSteps, chord, edo) {
+  let best = null, bestDist = Infinity;
+  for (let oct = -1; oct <= 1; oct++) for (const iv of chord.toneSteps) {
+    const cand = chord.rootSteps + iv + oct * edo;
+    const dist = Math.abs(cand - rawSteps);
+    if (dist < bestDist) { bestDist = dist; best = cand; }
+  }
+  return best;
+}
+
+function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
+  const notes = [];
+  let degreeIndex = 0, prevStep = 0, prevDurToken = 2, tCursor = 0;
+  const totalBeats = chords.length * beatsPerBar;
+
+  while (tCursor < totalBeats - 0.01) {
+    const chordIdx = Math.min(chords.length - 1, Math.floor(tCursor / beatsPerBar));
+    const chord = chords[chordIdx];
+
+    const targetState = lerp(4, 1, p.density);
+    const durWeights = new Float64Array(4);
+    for (let s = 1; s <= 4; s++) {
+      const base = Math.exp(-Math.abs(s - targetState) / 1.2);
+      const cont = Math.exp(-Math.abs(s - prevDurToken) / 1.5);
+      durWeights[s - 1] = base * cont;
+    }
+    const durToken = rng.weightedIndex(durWeights) + 1;
+    let durBeats = durToken * 0.5;
+    if (tCursor + durBeats > totalBeats) durBeats = totalBeats - tCursor;
+    if (durBeats <= 0.001) break;
+
+    const stepScale = lerp(0.9, 3.0, p.leapProbability);
+    const stepWeights = new Float64Array(8);
+    for (let d = -3; d <= 4; d++) {
+      let w = Math.exp(-Math.abs(d) / stepScale);
+      if (Math.abs(prevStep) >= 3) {
+        const sgnD = Math.sign(d), sgnP = Math.sign(prevStep);
+        if (sgnD !== 0 && sgnD !== sgnP && Math.abs(d) <= 2) w *= 2.2;
+        if (sgnD === sgnP && Math.abs(d) >= 3) w *= 0.5;
+      }
+      stepWeights[d + 3] = w;
+    }
+    const step = rng.weightedIndex(stepWeights) - 3;
+    degreeIndex += step;
+    if (degreeIndex > DEGREE_HI) degreeIndex = DEGREE_HI - (degreeIndex - DEGREE_HI);
+    if (degreeIndex < DEGREE_LO) degreeIndex = DEGREE_LO + (DEGREE_LO - degreeIndex);
+    degreeIndex = clamp(degreeIndex, DEGREE_LO, DEGREE_HI);
+
+    let steps = degreeIndexToSteps(degreeIndex, tuning);
+    const beatPos = tCursor - chordIdx * beatsPerBar;
+    const isStrongBeat = Math.abs(beatPos - Math.round(beatPos)) < 0.01;
+    if (isStrongBeat && rng.next() < 0.6) steps = nearestChordToneSteps(steps, chord, tuning.edo);
+
+    const totalSteps = LEAD_OCTAVES * tuning.edo + steps;
+    notes.push({ startBeat: tCursor, durBeats: durBeats * 0.92, steps: totalSteps });
+
+    prevStep = step; prevDurToken = durToken;
+    tCursor += durBeats;
+  }
+  return notes;
+}
+
+function generateBassPad(chords, beatsPerBar, tuning, p) {
+  const padNotes = [], bassNotes = [];
+  
+  chords.forEach((chord, i) => {
+    const startBeat = i * beatsPerBar;
+    
+    // RHYTHM FIX: Walking bass for Jazz instead of a static block
+    if (p.jazzEnabled) {
+        for (let b = 0; b < beatsPerBar; b++) {
+            let stepVal = BASS_OCTAVES * tuning.edo + chord.rootSteps;
+            
+            // Syncopation/Walking Logic
+            if (b === 1) { // 2nd beat: random chord tone
+                const randomChordTone = chord.toneSteps[Math.floor(Math.random() * Math.min(3, chord.toneSteps.length))];
+                stepVal += randomChordTone;
+            } else if (b === 2) { // 3rd beat: fifth (or equivalent chord tone)
+                stepVal += chord.toneSteps[Math.min(2, chord.toneSteps.length - 1)];
+            } else if (b === 3 && i < chords.length - 1) { // 4th beat: chromatic approach to next chord
+                const nextChordRoot = BASS_OCTAVES * tuning.edo + chords[i+1].rootSteps;
+                stepVal = nextChordRoot + (Math.random() > 0.5 ? 1 : -1);
+            }
+            
+            bassNotes.push({ startBeat: startBeat + b, durBeats: 0.85, steps: stepVal });
+        }
+    } else {
+        bassNotes.push({ startBeat, durBeats: beatsPerBar * 0.95, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps });
+    }
+
+    chord.toneSteps.forEach((iv, j) => {
+      padNotes.push({ startBeat, durBeats: beatsPerBar * 0.95, steps: PAD_OCTAVES * tuning.edo + chord.rootSteps + iv, voiceIndex: j });
+    });
+  });
+  return { padNotes, bassNotes };
+}
+
+function stepsToFreq(totalSteps, tonicFreq, edo) { return tonicFreq * Math.pow(2, totalSteps / edo); }
+
+/* =========================================================================
+   4. FORMANTS — Corrected Bandpass Resonance Magnitude
+   ========================================================================= */
+
+const FORMANT_PRESETS = {
+  a: [{ freq:700, bw:80,  gain:1 },{ freq:1200, bw:90,  gain:0.6 },{ freq:2600, bw:120, gain:0.35 }],
+  e: [{ freq:500, bw:70,  gain:1 },{ freq:1900, bw:110, gain:0.55 },{ freq:2600, bw:120, gain:0.3 }],
+  i: [{ freq:280, bw:60,  gain:1 },{ freq:2250, bw:120, gain:0.5 },{ freq:3000, bw:130, gain:0.25 }],
+  o: [{ freq:480, bw:70,  gain:1 },{ freq:900,  bw:90,  gain:0.55 },{ freq:2600, bw:120, gain:0.3 }],
+  u: [{ freq:320, bw:65,  gain:1 },{ freq:850,  bw:85,  gain:0.5 },{ freq:2250, bw:110, gain:0.28 }],
+};
+
+function getFormants(p) {
+  if (p.formantPreset === 'custom') {
+    return [
+      { freq: p.customF1, bw: Math.max(20, p.customF1 * 0.11), gain: 1 },
+      { freq: p.customF2, bw: Math.max(20, p.customF2 * 0.05), gain: 0.55 },
+      { freq: p.customF3, bw: Math.max(20, p.customF3 * 0.045), gain: 0.3 },
+    ];
+  }
+  return FORMANT_PRESETS[p.formantPreset] || FORMANT_PRESETS.a;
+}
+
+function formantGain(freq, formants) {
+  let sum = 0;
+  for (const f of formants) {
+    const w = freq / f.freq;
+    const Q = f.freq / f.bw;
+    // FIX: Using proper bandpass resonance amplitude response instead of lowpass
+    // Bandpass magnitude: (w/Q) / sqrt( (1 - w^2)^2 + (w/Q)^2 )
+    const wq = w / Q;
+    const denom = Math.sqrt(Math.pow(1 - w * w, 2) + Math.pow(wq, 2));
+    sum += f.gain * (wq / denom);
+  }
+  return sum;
+}
+
+/* =========================================================================
+   5. VOLTERRA HARMONIC GENERATOR
+   ========================================================================= */
+
+const COS_POWER_EXPANSION = {
+  2: [[0, 0.5], [2, 0.5]],
+  3: [[1, 0.75], [3, 0.25]],
+  4: [[0, 0.375], [2, 0.5], [4, 0.125]],
+};
+
+function buildHarmonicTemplate(f0, p, sr, formants) {
+  const nyquist = sr * 0.5;
+  const maxAudible = Math.min(nyquist * 0.95, 9000);
+  const numHarmonics = clamp(Math.floor(maxAudible / f0), 4, 32);
+
+  const fc0 = lerp(9000, 250, p.memory);
+  const orderGain = { 2: p.evenDrive, 3: p.oddDrive, 4: p.evenDrive * p.evenDrive };
+
+  const Hre = new Float64Array(5), Him = new Float64Array(5);
+  Hre[1] += 1; 
+  for (const n of [2, 3, 4]) {
+    const fc = fc0 / n;
+    const w = f0 / fc;
+    const mag = 1 / Math.sqrt(1 + w * w);
+    const phase = -Math.atan(w);
+    const gain = orderGain[n] * Math.pow(mag, n);
+    for (const [m, coeff] of COS_POWER_EXPANSION[n]) {
+      if (m === 0) continue;
+      const amp = gain * coeff;
+      const ang = m * phase;
+      Hre[m] += amp * Math.cos(ang);
+      Him[m] += amp * Math.sin(ang);
+    }
+  }
+
+  const amp = new Float64Array(numHarmonics + 1);
+  const phase = new Float64Array(numHarmonics + 1);
+  for (let m = 1; m <= 4 && m <= numHarmonics; m++) {
+    amp[m] = Math.hypot(Hre[m], Him[m]);
+    phase[m] = Math.atan2(Him[m], Hre[m]);
+  }
+
+  const rolloffExp = lerp(3.2, 0.9, p.brightness);
+  const tailBase = amp[1] > 0 ? amp[1] * 0.9 : 0.5;
+  for (let k = 5; k <= numHarmonics; k++) { amp[k] = tailBase / Math.pow(k, rolloffExp); phase[k] = 0; }
+
+  let peakFormant = 0;
+  const resp = new Float64Array(numHarmonics + 1);
+  for (let k = 1; k <= numHarmonics; k++) { resp[k] = formantGain(k * f0, formants); if (resp[k] > peakFormant) peakFormant = resp[k]; }
+  if (peakFormant <= 0) peakFormant = 1;
+  for (let k = 1; k <= numHarmonics; k++) amp[k] *= (resp[k] / peakFormant) * 0.7 + 0.3;
+
+  return { numHarmonics, amp, phase };
+}
+
+/* =========================================================================
+   6. SPECTRAL IMAGE
+   ========================================================================= */
+
+const SPECTRAL_LEVELS = [0.354, 0.5, 0.707, 1.0, 1.414, 2.0, 2.828];
+const SPECTRAL_CENTER = 3;
+
+const SPECTRAL_KERNELS = {
+  gaussian: { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-(d * d) / (2 * s * s)) },
+  laplace:  { step: (d, s) => Math.exp(-Math.abs(d) / s), pull: (d, s) => Math.exp(-Math.abs(d) / s) },
+  uniform:  { step: (d, s) => (Math.abs(d) <= s ? 1 : 0.05), pull: (d, s) => (Math.abs(d) <= s ? 1 : 0.05) },
+  cauchy:   { step: (d, s) => 1 / (1 + (d / s) * (d / s)), pull: (d, s) => 1 / (1 + (d / s) * (d / s)) },
+  bimodal:  { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-((d - 2) ** 2) / (2 * s * s)) + Math.exp(-((d + 2) ** 2) / (2 * s * s)) },
+};
+
+function buildSpectralImage(rng, template, numFrames, p) {
+  const stepSigma = lerp(0.4, 3.0, p.volatility);
+  const centerSigma = lerp(0.5, 4.0, p.richness);
+  const kernel = SPECTRAL_KERNELS[p.spectralDistribution] || SPECTRAL_KERNELS.gaussian;
+  const trans = [];
+  for (let i = 0; i < 7; i++) {
+    const row = new Float64Array(7); let sum = 0;
+    for (let j = 0; j < 7; j++) {
+      const step = kernel.step(j - i, stepSigma);
+      const pull = kernel.pull(j - SPECTRAL_CENTER, centerSigma);
+      row[j] = step * pull; sum += row[j];
+    }
+    for (let j = 0; j < 7; j++) row[j] /= sum;
+    trans.push(row);
+  }
+  const numH = template.numHarmonics;
+  const image = [];
+  const state = new Int8Array(numH + 1).fill(SPECTRAL_CENTER);
+  for (let f = 0; f < numFrames; f++) {
+    const col = new Float64Array(numH + 1);
+    for (let k = 1; k <= numH; k++) {
+      if (f > 0) state[k] = rng.weightedIndex(trans[state[k]]);
+      col[k] = SPECTRAL_LEVELS[state[k]];
+    }
+    image.push(col);
+  }
+  return image;
+}
+
+/* =========================================================================
+   7. WAVEFORM RECONSTRUCTION
+   ========================================================================= */
+
+function renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, spectralImage, frameHopSamples, attackSec, releaseSec, velocity, pan) {
+  const numH = template.numHarmonics;
+  const phaseAcc = new Float64Array(numH + 1);
+  for (let k = 1; k <= numH; k++) phaseAcc[k] = template.phase[k] || 0;
+
+  const attackSamples = Math.max(1, Math.floor(attackSec * sr));
+  const relSamples = Math.max(1, Math.floor(releaseSec * sr));
+  const totalSamples = durSamples + relSamples;
+
+  const panAngle = (clamp(pan, -1, 1) + 1) * 0.25 * Math.PI;
+  const gL = Math.cos(panAngle), gR = Math.sin(panAngle);
+
+  const twoPiOverSr = 2 * Math.PI / sr;
+  const nyquist = sr * 0.5;
+  const freqs = new Float64Array(numH + 1);
+  const incr = new Float64Array(numH + 1);
+  for (let k = 1; k <= numH; k++) { freqs[k] = k * f0; incr[k] = freqs[k] * twoPiOverSr; }
+
+  const bufLen = bufL.length;
+  const lastFrame = spectralImage.length - 1;
+
+  for (let n = 0; n < totalSamples; n++) {
+    const outIdx = startSample + n;
+    if (outIdx < 0 || outIdx >= bufLen) { for (let k = 1; k <= numH; k++) phaseAcc[k] += incr[k]; continue; }
+
+    let env;
+    if (n < attackSamples) env = n / attackSamples;
+    else if (n < durSamples) env = 1;
+    else env = Math.max(0, 1 - (n - durSamples) / relSamples);
+
+    const frameF = n / frameHopSamples;
+    let f0i = frameF | 0; if (f0i > lastFrame) f0i = lastFrame;
+    let f1i = f0i + 1; if (f1i > lastFrame) f1i = lastFrame;
+    const frac = frameF - f0i;
+
+    let sample = 0;
+    for (let k = 1; k <= numH; k++) {
+      if (freqs[k] < nyquist) {
+        const lvl = spectralImage[f0i][k] * (1 - frac) + spectralImage[f1i][k] * frac;
+        const amp = template.amp[k] * lvl * env * velocity;
+        sample += amp * lutCos(phaseAcc[k]);
+      }
+      phaseAcc[k] += incr[k];
+    }
+    bufL[outIdx] += sample * gL;
+    bufR[outIdx] += sample * gR;
+  }
+}
+
+/* =========================================================================
+   7b. DRUM MACHINE SYNTHESIS (New)
+   ========================================================================= */
+
+const drumPatterns = {
+  kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
+  snare: [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
+  hat:   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1]
+};
+
+function renderDrums(bufL, bufR, sr, beatsPerBar, secPerBeat, numBars, vol) {
+  if (vol <= 0.01) return;
+  const totalSteps = numBars * 16;
+  const stepSec = secPerBeat / 4; // 16th notes
+  
+  for (let s = 0; s < totalSteps; s++) {
+    const stepIdx = s % 16;
+    const startSample = Math.floor(s * stepSec * sr);
+    
+    if (drumPatterns.kick[stepIdx]) {
+      // Synth Kick
+      const dur = Math.floor(0.4 * sr);
+      let phase = 0;
+      for (let i = 0; i < dur; i++) {
+        if (startSample + i >= bufL.length) break;
+        const env = Math.exp(-i / (sr * 0.1));
+        const freq = 50 + 150 * Math.exp(-i / (sr * 0.02));
+        phase += (freq * 2 * Math.PI) / sr;
+        const sample = Math.sin(phase) * env * 0.8 * vol;
+        bufL[startSample + i] += sample;
+        bufR[startSample + i] += sample;
+      }
+    }
+    
+    if (drumPatterns.snare[stepIdx]) {
+      // Synth Snare
+      const dur = Math.floor(0.25 * sr);
+      let phase = 0;
+      for (let i = 0; i < dur; i++) {
+        if (startSample + i >= bufL.length) break;
+        const env = Math.exp(-i / (sr * 0.08));
+        const noise = (Math.random() * 2 - 1) * 0.5;
+        phase += (180 * 2 * Math.PI) / sr;
+        const body = Math.sin(phase) * Math.exp(-i / (sr * 0.03));
+        const sample = (noise + body) * env * 0.6 * vol;
+        bufL[startSample + i] += sample;
+        bufR[startSample + i] += sample;
+      }
+    }
+    
+    if (drumPatterns.hat[stepIdx]) {
+      // Synth Hat
+      const dur = Math.floor(0.08 * sr);
+      let lastVal = 0;
+      for (let i = 0; i < dur; i++) {
+        if (startSample + i >= bufL.length) break;
+        const env = Math.exp(-i / (sr * 0.02));
+        const noise = Math.random() * 2 - 1;
+        // Simple Highpass
+        const hp = noise - lastVal; 
+        lastVal = noise + hp * 0.5;
+        const sample = hp * env * 0.3 * vol;
+        bufL[startSample + i] += sample;
+        bufR[startSample + i] += sample;
+      }
+    }
+  }
+}
+
+/* =========================================================================
+   8. REVERB & WAV export
+   ========================================================================= */
+
+function combFilter(input, delay, feedback) {
+  const d = Math.max(1, delay);
+  const out = new Float32Array(input.length);
+  const buf = new Float32Array(d);
+  let idx = 0;
+  for (let i = 0; i < input.length; i++) {
+    const bufOut = buf[idx];
+    out[i] = bufOut;
+    buf[idx] = input[i] + bufOut * feedback;
+    idx = (idx + 1) % d;
+  }
+  return out;
+}
+function allpassFilter(input, delay, g) {
+  const d = Math.max(1, delay);
+  const out = new Float32Array(input.length);
+  const buf = new Float32Array(d);
+  let idx = 0;
+  for (let i = 0; i < input.length; i++) {
+    const bufOut = buf[idx];
+    const inVal = input[i];
+    out[i] = -g * inVal + bufOut;
+    buf[idx] = inVal + bufOut * g;
+    idx = (idx + 1) % d;
+  }
+  return out;
+}
+function monoReverb(input, sr, combMs, apMs) {
+  const sum = new Float32Array(input.length);
+  for (const ms of combMs) {
+    const c = combFilter(input, Math.round(ms * sr / 1000), 0.83);
+    for (let i = 0; i < input.length; i++) sum[i] += c[i] * 0.25;
+  }
+  let ap = sum;
+  for (const ms of apMs) ap = allpassFilter(ap, Math.round(ms * sr / 1000), 0.5);
+  return ap;
+}
+function schroederReverbStereo(bufL, bufR, sr, wet) {
+  if (wet <= 0.002) return [bufL.slice(), bufR.slice()];
+  const wetL = monoReverb(bufL, sr, [35.3, 36.7, 33.8, 32.2], [5.1, 12.6]);
+  const wetR = monoReverb(bufR, sr, [35.9, 37.2, 34.3, 32.7], [5.3, 12.9]);
+  const outL = new Float32Array(bufL.length), outR = new Float32Array(bufR.length);
+  for (let i = 0; i < bufL.length; i++) {
+    outL[i] = bufL[i] * (1 - wet) + wetL[i] * wet;
+    outR[i] = bufR[i] * (1 - wet) + wetR[i] * wet;
+  }
+  return [outL, outR];
+}
+
+function encodeWavStereo(bufL, bufR, sr) {
+  const numSamples = bufL.length;
+  const numChannels = 2, bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numSamples * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true); view.setUint32(24, sr, true);
+  view.setUint32(28, sr * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+  writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const sL = clamp(bufL[i], -1, 1), sR = clamp(bufR[i], -1, 1);
+    view.setInt16(offset, sL < 0 ? sL * 32768 : sL * 32767, true); offset += 2;
+    view.setInt16(offset, sR < 0 ? sR * 32768 : sR * 32767, true); offset += 2;
+  }
+  return buffer;
+}
+
+/* =========================================================================
+   9. VISUALIZATION
+   ========================================================================= */
+
+function spectralColormap(t) {
+  const stops = [
+    [0.00, 10, 12, 16], [0.25, 45, 20, 90], [0.50, 150, 40, 110], [0.75, 232, 110, 50], [1.00, 250, 214, 140],
+  ];
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [t0, r0, g0, b0] = stops[i], [t1, r1, g1, b1] = stops[i + 1];
+    if (t >= t0 && t <= t1) {
+      const f = (t - t0) / (t1 - t0);
+      return [Math.round(lerp(r0, r1, f)), Math.round(lerp(g0, g1, f)), Math.round(lerp(b0, b1, f))];
+    }
+  }
+  return [250, 214, 140];
+}
+function aggregateImageForDisplay(image, displayW, maxHarm) {
+  const srcLen = image.length;
+  const out = new Array(displayW);
+  for (let x = 0; x < displayW; x++) {
+    let srcStart = Math.floor(x * srcLen / displayW);
+    let srcEnd = Math.floor((x + 1) * srcLen / displayW);
+    if (srcEnd <= srcStart) srcEnd = srcStart + 1;
+    if (srcEnd > srcLen) srcEnd = srcLen;
+    if (srcStart >= srcLen) srcStart = srcLen - 1;
+    const col = new Float32Array(maxHarm + 1);
+    for (let si = srcStart; si < srcEnd; si++) {
+      const srcCol = image[si];
+      for (let k = 1; k <= maxHarm; k++) if (srcCol[k] > col[k]) col[k] = srcCol[k];
+    }
+    out[x] = col;
+  }
+  return out;
+}
+function percentileMax(image, maxHarm, pct) {
+  const vals = [];
+  for (const col of image) for (let k = 1; k <= maxHarm; k++) if (col[k] > 0) vals.push(col[k]);
+  if (vals.length === 0) return 1e-6;
+  vals.sort((a, b) => a - b);
+  const idx = clamp(Math.floor(vals.length * pct), 0, vals.length - 1);
+  return Math.max(vals[idx], 1e-6);
+}
+let lastVizImage = null, lastVizMaxHarm = 24;
+function drawSpectralImage(image, maxHarm) {
+  lastVizImage = image; lastVizMaxHarm = maxHarm;
+  const canvas = document.getElementById('spectralCanvas');
+  const rowH = 8;
+  const dpr = window.devicePixelRatio || 1;
+  const cssWidth = canvas.clientWidth || (canvas.parentElement && canvas.parentElement.clientWidth) || 900;
+  const displayW = clamp(Math.round(cssWidth * dpr), 200, 2200);
+  const agg = aggregateImageForDisplay(image, displayW, maxHarm);
+  const w = displayW, h = maxHarm * rowH;
+  canvas.width = w; canvas.height = h;
+  canvas.style.height = Math.round(h / dpr) + 'px';
+  const ctx = canvas.getContext('2d');
+  const maxVal = percentileMax(agg, maxHarm, 0.97);
+  const imgData = ctx.createImageData(w, h);
+  for (let x = 0; x < w; x++) {
+    const col = agg[x];
+    for (let k = 1; k <= maxHarm; k++) {
+      const v = clamp(col[k] / maxVal, 0, 1);
+      const [r, g, b] = spectralColormap(v);
+      const yTop = h - k * rowH;
+      for (let ry = 0; ry < rowH; ry++) {
+        const idx = ((yTop + ry) * w + x) * 4;
+        imgData.data[idx] = r; imgData.data[idx + 1] = g; imgData.data[idx + 2] = b; imgData.data[idx + 3] = 255;
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+function renderProgressionStrip(chords) {
+  const strip = document.getElementById('progressionStrip');
+  strip.innerHTML = '';
+  chords.forEach((chord, i) => {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    const isLocked = lockedSlots[i] !== undefined;
+    cell.className = 'chord-cell' + (i === 0 || i === chords.length - 1 ? ' anchor' : '') + (isLocked ? ' locked' : '');
+    const idx = document.createElement('span'); idx.className = 'chord-idx'; idx.textContent = (i + 1) + (isLocked ? ' \u{1F512}' : '');
+    const name = document.createElement('span'); name.className = 'chord-name'; name.textContent = chord.name;
+    cell.appendChild(idx); cell.appendChild(name);
+    cell.addEventListener('click', () => openChordEditor(i));
+    strip.appendChild(cell);
+  });
+}
+
+/* =========================================================================
+   10. UI WIRING + ORCHESTRATION
+   ========================================================================= */
+
+const $ = id => document.getElementById(id);
+const rootSelect = $('rootSelect'), modeSelect = $('modeSelect');
+const tuningSelect = $('tuningSelect'), customTuningBlock = $('customTuningBlock'), customEdoInput = $('customEdoInput');
+const styleSelect = $('styleSelect'), jazzBlock = $('jazzBlock');
+const secDomSlider = $('secDomSlider'), tritoneSubSlider = $('tritoneSubSlider'), extensionSlider = $('extensionSlider');
+const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlider = $('tensionSlider');
+const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
+const formantSelect = $('formantSelect'), customFormantBlock = $('customFormantBlock');
+const f1Slider = $('f1Slider'), f2Slider = $('f2Slider'), f3Slider = $('f3Slider');
+const evenSlider = $('evenSlider'), oddSlider = $('oddSlider'), memorySlider = $('memorySlider');
+const volatilitySlider = $('volatilitySlider'), richnessSlider = $('richnessSlider'), distributionSelect = $('distributionSelect');
+const attackSlider = $('attackSlider'), releaseSlider = $('releaseSlider'), brightnessSlider = $('brightnessSlider');
+const spaceSlider = $('spaceSlider'), gainSlider = $('gainSlider');
+const seedInput = $('seedInput'), randSeedBtn = $('randSeedBtn');
+const generateBtn = $('generateBtn'), playBtn = $('playBtn'), stopBtn = $('stopBtn'), exportBtn = $('exportBtn');
+const statusLine = $('statusLine');
+const chordEditPopover = $('chordEditPopover'), chordEditSelect = $('chordEditSelect'), chordEditLockBtn = $('chordEditLockBtn'), chordEditClose = $('chordEditClose');
+const drumVolSlider = $('drumVolSlider');
+
+// Editable-progression state
+let currentStates = null, currentTuning = null, currentMatrices = null;
+let currentStateIndices = null, currentChords = null;
+let lockedSlots = {};
+let lastFullParams = null;
+let editingCellIndex = null;
+
+// Populate UI options
+Object.entries(TUNING_SYSTEMS).forEach(([edo, label]) => { const o = document.createElement('option'); o.value = edo; o.textContent = label; if (edo === '12') o.selected = true; tuningSelect.appendChild(o); });
+{ const o = document.createElement('option'); o.value = 'custom'; o.textContent = 'custom…'; tuningSelect.appendChild(o); }
+
+// Initialize Drum Machine UI
+const drumUI = $('drumMachineUI');
+Object.keys(drumPatterns).forEach(instr => {
+  const row = document.createElement('div'); row.className = 'drum-row';
+  const label = document.createElement('div'); label.className = 'drum-label'; label.textContent = instr;
+  const stepsDiv = document.createElement('div'); stepsDiv.className = 'drum-steps';
+  drumPatterns[instr].forEach((val, stepIdx) => {
+    const step = document.createElement('div');
+    step.className = 'drum-step' + (val ? ' active' : '');
+    step.addEventListener('click', () => {
+      drumPatterns[instr][stepIdx] = drumPatterns[instr][stepIdx] ? 0 : 1;
+      step.classList.toggle('active');
+    });
+    stepsDiv.appendChild(step);
+  });
+  row.appendChild(label); row.appendChild(stepsDiv); drumUI.appendChild(row);
+});
+
+function openChordEditor(cellIndex) {
+  if (!currentStates || !currentChords) return;
+  editingCellIndex = cellIndex;
+  chordEditSelect.innerHTML = '';
+  currentStates.forEach((st, idx) => {
+    const o = document.createElement('option');
+    o.value = idx;
+    o.textContent = st.name;
+    if (idx === currentChords[cellIndex].stateIndex) o.selected = true;
+    chordEditSelect.appendChild(o);
+  });
+  chordEditLockBtn.textContent = lockedSlots[cellIndex] !== undefined ? '\u{1F512} locked' : '\u{1F513} lock';
+  chordEditPopover.classList.add('open');
+}
+chordEditSelect.addEventListener('change', () => {
+  if (editingCellIndex === null) return;
+  const newIdx = parseInt(chordEditSelect.value);
+  const rootSteps = resolveChordRootSteps(newIdx, currentStates, currentTuning);
+  const quality = currentStates[newIdx].quality;
+  const ext = EXTENSION_POOLS[quality] ? ['M9'] : [];
+  const toneSteps = chordToneSteps(quality, currentTuning.edo, ext);
+  currentChords[editingCellIndex] = { name: currentStates[newIdx].name, rootSteps, toneSteps, quality, stateIndex: newIdx, tritoneSubbed: false, extensions: ext };
+  currentStateIndices[editingCellIndex] = newIdx;
+  if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = newIdx;
+  renderProgressionStrip(currentChords);
+  reRenderFromEditedProgression();
+});
+chordEditLockBtn.addEventListener('click', () => {
+  if (editingCellIndex === null) return;
+  if (lockedSlots[editingCellIndex] !== undefined) delete lockedSlots[editingCellIndex];
+  else lockedSlots[editingCellIndex] = currentChords[editingCellIndex].stateIndex;
+  chordEditLockBtn.textContent = lockedSlots[editingCellIndex] !== undefined ? '\u{1F512} locked' : '\u{1F513} lock';
+  renderProgressionStrip(currentChords);
+});
+chordEditClose.addEventListener('click', () => { chordEditPopover.classList.remove('open'); editingCellIndex = null; });
+chordEditPopover.addEventListener('click', (e) => { if (e.target === chordEditPopover) { chordEditPopover.classList.remove('open'); editingCellIndex = null; } });
+
+async function reRenderFromEditedProgression() {
+  if (!lastFullParams || !currentChords || !currentTuning) return;
+  ensureAudioContext();
+  stopPlayback();
+  generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
+  try {
+    const voiceRng = new RNG((lastFullParams.seed ^ 0x9E3779B9 ^ 0xA5A5A5) >>> 0);
+    const secs = await renderFromChords(currentChords, lastFullParams, currentTuning, voiceRng, msg => { statusLine.textContent = msg; });
+    statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — edited';
+    playBtn.disabled = false; exportBtn.disabled = false;
+    playAudio();
+    stopBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    statusLine.textContent = 'error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+  }
+}
+
+NOTE_NAMES.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = n; if (i === 9) o.selected = true; rootSelect.appendChild(o); });
+
+function mapAttackSec(v) { return lerp(0.005, 0.9, v); }
+function mapReleaseSec(v) { return lerp(0.05, 2.2, v); }
+
+document.querySelectorAll('input[type=range]').forEach(el => {
+  if (el.id === 'attackSlider' || el.id === 'releaseSlider') return;
+  el.addEventListener('input', () => {
+    const span = $(el.id.replace('Slider', 'Val'));
+    if (!span) return;
+    span.textContent = (parseFloat(el.step) >= 1) ? Math.round(el.value) : parseFloat(el.value).toFixed(2);
+  });
+});
+attackSlider.addEventListener('input', () => { $('attackVal').textContent = mapAttackSec(parseFloat(attackSlider.value)).toFixed(2) + 's'; });
+releaseSlider.addEventListener('input', () => { $('releaseVal').textContent = mapReleaseSec(parseFloat(releaseSlider.value)).toFixed(2) + 's'; });
+customEdoInput.addEventListener('input', () => { $('customEdoVal').textContent = clamp(parseInt(customEdoInput.value) || 12, 5, 72); });
+formantSelect.addEventListener('change', () => { customFormantBlock.style.display = formantSelect.value === 'custom' ? 'block' : 'none'; });
+tuningSelect.addEventListener('change', () => { customTuningBlock.style.display = tuningSelect.value === 'custom' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
+styleSelect.addEventListener('change', () => { jazzBlock.style.display = styleSelect.value === 'jazz' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
+modeSelect.addEventListener('change', clearLocksAndRegenerateHint);
+barsSlider.addEventListener('change', clearLocksAndRegenerateHint);
+function clearLocksAndRegenerateHint() { lockedSlots = {}; }
+randSeedBtn.addEventListener('click', () => { seedInput.value = Math.floor(Math.random() * 1e9); });
+gainSlider.addEventListener('input', () => { if (masterGainNode) masterGainNode.gain.value = parseFloat(gainSlider.value); });
+
+let resizeRedrawTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeRedrawTimer);
+  resizeRedrawTimer = setTimeout(() => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); }, 150);
+});
+
+function readParams() {
+  const edo = tuningSelect.value === 'custom' ? clamp(parseInt(customEdoInput.value) || 12, 5, 72) : parseInt(tuningSelect.value);
+  return {
+    seed: parseInt(seedInput.value) || 0,
+    rootPC: parseInt(rootSelect.value),
+    mode: modeSelect.value,
+    edo,
+    jazzEnabled: styleSelect.value === 'jazz',
+    secDomWeight: lerp(0, 3, parseFloat(secDomSlider.value)),
+    tritoneSubChance: parseFloat(tritoneSubSlider.value),
+    extensionDensity: parseFloat(extensionSlider.value),
+    tempo: parseFloat(tempoSlider.value),
+    bars: parseInt(barsSlider.value),
+    tension: parseFloat(tensionSlider.value),
+    leapProbability: parseFloat(leapSlider.value),
+    density: parseFloat(densitySlider.value),
+    formantPreset: formantSelect.value,
+    customF1: parseFloat(f1Slider.value), customF2: parseFloat(f2Slider.value), customF3: parseFloat(f3Slider.value),
+    evenDrive: parseFloat(evenSlider.value), oddDrive: parseFloat(oddSlider.value), memory: parseFloat(memorySlider.value),
+    volatility: parseFloat(volatilitySlider.value), richness: parseFloat(richnessSlider.value), spectralDistribution: distributionSelect.value,
+    attack: parseFloat(attackSlider.value), release: parseFloat(releaseSlider.value),
+    brightness: parseFloat(brightnessSlider.value), space: parseFloat(spaceSlider.value), gain: parseFloat(gainSlider.value),
+    drumVol: parseFloat(drumVolSlider.value)
+  };
+}
+
+let audioCtx = null, masterGainNode = null, currentSource = null;
+let renderedL = null, renderedR = null, pieceSampleRate = 44100, currentSeed = null;
+
+function ensureAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = parseFloat(gainSlider.value);
+    masterGainNode.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx) {
+  const { bufL, bufR, sr, secPerBeat, formants, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
+  let i = 0;
+  for (const note of notes) {
+    const startSample = Math.round(note.startBeat * secPerBeat * sr);
+    const durSamples = Math.max(1, Math.round(note.durBeats * secPerBeat * sr));
+    const f0 = stepsToFreq(note.steps, tonicFreq, edo);
+    const template = buildHarmonicTemplate(f0, p, sr, formants);
+    const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
+    const image = buildSpectralImage(rng, template, numFrames, p);
+    const pan = panFn(note);
+    renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, image, frameHopSamples, attackSec, releaseSec, gain, pan);
+
+    if (collectViz) {
+      const noteStartFrame = Math.floor(startSample / frameHopSamples);
+      const maxH = Math.min(template.numHarmonics, vizMaxHarm);
+      for (let li = 0; li < image.length; li++) {
+        const gi = noteStartFrame + li;
+        if (gi < 0 || gi >= vizImage.length) continue;
+        const col = vizImage[gi];
+        for (let k = 1; k <= maxH; k++) col[k] = Math.max(col[k], template.amp[k] * image[li][k]);
+      }
+    }
+    i++;
+    // Yield to main thread to prevent UI locking
+    if (i % 6 === 0) await new Promise(r => setTimeout(r, 0)); 
+  }
+}
+
+function buildTheoryContext(p) {
+  const modeRotation = p.mode === 'major' ? 0 : 5;
+  const tuning = buildTuning(p.edo, modeRotation);
+  const baseDefs = p.mode === 'major' ? MAJOR_STATE_DEFS : MINOR_STATE_DEFS;
+  const secondaryTargets = p.mode === 'major' ? MAJOR_SECONDARY_TARGETS : MINOR_SECONDARY_TARGETS;
+  const consonantBase = p.mode === 'major' ? MAJOR_CONSONANT_BASE : MINOR_CONSONANT_BASE;
+  const states = buildStateList(baseDefs, secondaryTargets, p.jazzEnabled);
+  const matrices = buildProgressionMatrices(consonantBase, 9, secondaryTargets, p.jazzEnabled, p.secDomWeight);
+  return { tuning, states, matrices };
+}
+
+async function doGenerate(p, onProgress) {
+  currentSeed = p.seed;
+  const progressionRng = new RNG(p.seed);
+  const voiceRng = new RNG((p.seed ^ 0x9E3779B9) >>> 0); 
+
+  const { tuning, states, matrices } = buildTheoryContext(p);
+  currentStates = states; currentTuning = tuning; currentMatrices = matrices;
+
+  const stateIndices = generateProgressionIndices(progressionRng, matrices, p.tension, p.bars, lockedSlots);
+  const chords = resolveChords(stateIndices, states, tuning, progressionRng, { enabled: p.jazzEnabled, tritoneSubChance: p.tritoneSubChance, extensionDensity: p.extensionDensity });
+  currentStateIndices = stateIndices; currentChords = chords;
+  lastFullParams = p;
+
+  renderProgressionStrip(chords);
+  return await renderFromChords(chords, p, tuning, voiceRng, onProgress);
+}
+
+async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
+  const sr = pieceSampleRate;
+  const beatsPerBar = 4;
+  const secPerBeat = 60 / p.tempo;
+  const totalMusicSec = p.bars * beatsPerBar * secPerBeat;
+  const releaseSec = mapReleaseSec(p.release);
+  const attackSec = mapAttackSec(p.attack);
+  const totalSec = totalMusicSec + releaseSec + 0.3;
+  const totalSamples = Math.ceil(totalSec * sr);
+
+  const bufL = new Float32Array(totalSamples);
+  const bufR = new Float32Array(totalSamples);
+
+  const tonicFreq = 440 * Math.pow(2, (48 + p.rootPC - 69) / 12); 
+
+  const leadNotes = generatePhrase(voiceRng, chords, beatsPerBar, p, tuning);
+  const { padNotes, bassNotes } = generateBassPad(chords, beatsPerBar, tuning, p);
+  const formants = getFormants(p);
+
+  const FRAME_HOP_SEC = 0.025;
+  const frameHopSamples = Math.max(1, Math.round(FRAME_HOP_SEC * sr));
+
+  const vizMaxHarm = 24;
+  const totalFrames = Math.ceil(totalSamples / frameHopSamples) + 1;
+  const vizImage = Array.from({ length: totalFrames }, () => new Float32Array(vizMaxHarm + 1));
+
+  const ctx = { bufL, bufR, sr, secPerBeat, formants, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
+  const padPans = [-0.55, 0.2, 0.55, -0.15];
+
+  onProgress('rendering lead…');
+  await renderVoiceAsync(leadNotes, 0.5, () => 0, true, ctx);
+  onProgress('rendering pad…');
+  await renderVoiceAsync(padNotes, 0.25, n => padPans[(n.voiceIndex || 0) % padPans.length], false, ctx);
+  onProgress('rendering bass…');
+  await renderVoiceAsync(bassNotes, 0.55, () => 0, false, ctx);
+  
+  onProgress('rendering drums…');
+  await new Promise(r => setTimeout(r, 0));
+  renderDrums(bufL, bufR, sr, beatsPerBar, secPerBeat, p.bars, p.drumVol);
+
+  onProgress('reverb…');
+  await new Promise(r => setTimeout(r, 0));
+  const [rL, rR] = schroederReverbStereo(bufL, bufR, sr, p.space);
+
+  onProgress('normalizing…');
+  await new Promise(r => setTimeout(r, 0));
+  let peak = 0;
+  for (let i = 0; i < totalSamples; i++) { const a = Math.abs(rL[i]), b = Math.abs(rR[i]); if (a > peak) peak = a; if (b > peak) peak = b; }
+  const normGain = peak > 0 ? Math.min(6, 0.9 / peak) : 1;
+  for (let i = 0; i < totalSamples; i++) { rL[i] *= normGain; rR[i] *= normGain; }
+
+  renderedL = rL; renderedR = rR;
+  drawSpectralImage(vizImage, vizMaxHarm);
+  return totalSamples / sr;
+}
+
+function playAudio() {
+  if (!renderedL) return;
+  ensureAudioContext();
+  stopPlayback();
+  const buffer = audioCtx.createBuffer(2, renderedL.length, pieceSampleRate);
+  buffer.copyToChannel(renderedL, 0);
+  buffer.copyToChannel(renderedR, 1);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(masterGainNode);
+  src.onended = () => { if (currentSource === src) currentSource = null; };
+  src.start();
+  currentSource = src;
+}
+function stopPlayback() {
+  if (currentSource) { try { currentSource.stop(); } catch (e) {} currentSource = null; }
+}
+function exportWav() {
+  if (!renderedL) return;
+  const blob = new Blob([encodeWavStereo(renderedL, renderedR, pieceSampleRate)], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'eidolon-' + currentSeed + '.wav';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+generateBtn.addEventListener('click', async () => {
+  ensureAudioContext();
+  stopPlayback();
+  generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
+  statusLine.textContent = 'generating structure…';
+  try {
+    const p = readParams();
+    await new Promise(r => setTimeout(r, 10)); // let the disabled/status state paint first
+    const secs = await doGenerate(p, msg => { statusLine.textContent = msg; });
+    statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — seed ' + p.seed;
+    playBtn.disabled = false; exportBtn.disabled = false;
+    playAudio();
+    stopBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    statusLine.textContent = 'error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+playBtn.addEventListener('click', () => { playAudio(); stopBtn.disabled = false; });
+stopBtn.addEventListener('click', () => { stopPlayback(); });
+exportBtn.addEventListener('click', exportWav);
+
+</script>
+</body>
+</html>
