@@ -1135,6 +1135,10 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
     }
   }
 
+  // Seeding inside Volterra: Localized deterministic per-note seed decouples notes and guarantees stability
+  const noteSeed = (p.seed ^ Math.round(startBeat * 7919) ^ Math.round(numHarmonics * 104729)) >>> 0;
+  const noteRng = new RNG(noteSeed);
+
   const rawX = [];
   const state = new Int8Array(numHarmonics + 1).fill(SPECTRAL_CENTER);
   const FRAME_HOP_SEC = p.frameHopSec || 0.025;
@@ -1148,7 +1152,7 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
 
     for (let k = 1; k <= numHarmonics; k++) {
       if (f > 0) {
-        state[k] = rng.weightedIndex(trans[state[k]]);
+        state[k] = noteRng.weightedIndex(trans[state[k]]);
       }
       let val = SPECTRAL_LEVELS[state[k]];
 
@@ -1162,7 +1166,11 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
         const triggerFactor = 1.0 + 0.6 * Math.exp(-0.06 * (k - 1));
         val *= triggerFactor;
       }
-      col[k] = val;
+
+      // Smooth Startup Ramp (Anti-Shock Transient Seeding):
+      // Fade-in the raw excitation over the first 4 frames to prevent sudden feedback shocks
+      const ramp = Math.min(1.0, f / 4.0);
+      col[k] = val * ramp;
     }
     rawX.push(col);
   }
@@ -1186,7 +1194,7 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
   }
 
   const getX = (fi, ki) => {
-    if (fi < 0) fi = 0;
+    if (fi < 0) return 0; // Resting system state history prevents shock transients!
     if (fi >= numFrames) fi = numFrames - 1;
     if (ki < 1) return 0;
     if (ki > numHarmonics) return 0;
@@ -1214,9 +1222,9 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
         L /= linearWeightSum; // Linear kernel is perfectly normalized (energy preserving)
       }
 
-      // 2. Quadratic Term (Address Point 2, 3, 8 & 10: normalize, add phase cancellation, prevent explosion)
+      // 2. Quadratic Term (Address Point 2, 3, 8 & 10: normalize over all paths to prevent explosion)
       let Q = 0;
-      let quadWeightSum = 0;
+      let quadPathsCount = 0;
       if (order >= 2) {
         // Sum-frequency generation: k1 + k2 = k
         for (let k1 = 1; k1 < k; k1++) {
@@ -1228,7 +1236,7 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
             // Destructive phase interference / cancellation:
             const phaseCoeff = Math.cos((k1 - k2) * 1.2);
             Q += x1 * x2 * wt1 * phaseCoeff;
-            quadWeightSum += wt1;
+            quadPathsCount += wt1;
           }
         }
         // Difference-frequency generation: |k1 - k2| = k
@@ -1241,12 +1249,12 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
             // Destructive phase interference / cancellation:
             const phaseCoeff = Math.cos((k1 - k2) * 1.2);
             Q += x1 * x2 * wt1 * phaseCoeff;
-            quadWeightSum += wt1;
+            quadPathsCount += wt1;
           }
         }
       }
-      if (quadWeightSum > 0) {
-        Q /= quadWeightSum; // Quadratic kernel is perfectly normalized
+      if (quadPathsCount > 0) {
+        Q /= quadPathsCount; // Normalized over actual combinations to prevent resonance explosion!
       }
 
       // 3. Cubic Term (Address Point 9 & 10: negative feedback cubic restoring force to suppress resonances)
