@@ -240,8 +240,53 @@
   </div>
 
   <div class="panel">
-    <h2>2 · Phrase Constraints</h2>
+    <h2>2 · Phrase Constraints &amp; Rhythm</h2>
+
+    <!-- 16-step PHRASE Rhythm Sequencer row -->
     <div class="control">
+      <label>Melodic Rhythm Sequencer</label>
+      <div class="drum-machine">
+        <div class="drum-row">
+          <div class="drum-label" style="width:55px;">PHRASE</div>
+          <div class="drum-steps" id="phraseRhythmSteps"></div>
+        </div>
+      </div>
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Define direct active rhythm steps for the lead melody phrase.</span>
+    </div>
+
+    <div class="control">
+      <label>Tonal Distribution</label>
+      <select id="phraseTonalDistributionSelect">
+        <option value="chord_tones" selected>Pure Chord Tones</option>
+        <option value="diatonic_mos">Diatonic MOS Scale</option>
+        <option value="pentatonic">Pentatonic Mode</option>
+        <option value="chromatic">Chromatic / High Tension</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Octave Base Preference <span class="val" id="octaveBaseVal">2</span></label>
+      <input type="range" id="octaveBaseSlider" min="-1" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Octave Drift Limit <span class="val" id="octaveDriftVal">1</span></label>
+      <input type="range" id="octaveDriftSlider" min="0" max="3" step="1" value="1">
+    </div>
+
+    <div class="control">
+      <label>Motion Bias <span class="val" id="motionBiasVal">0.50</span></label>
+      <input type="range" id="motionBiasSlider" min="0" max="1" step="0.01" value="0.50">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">0 = stepwise scale movement, 1 = skip/arpeggiation.</span>
+    </div>
+
+    <div class="control">
+      <label>Directional Trend <span class="val" id="dirTrendVal">0.00</span></label>
+      <input type="range" id="dirTrendSlider" min="-1" max="1" step="0.05" value="0.00">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">-1 = downward bias, 0 = balanced, +1 = upward bias.</span>
+    </div>
+
+    <div class="control" style="margin-top:14px; border-top:1px dashed var(--border); padding-top:14px;">
       <label>Leap bias <span class="val" id="leapVal">0.30</span></label>
       <input type="range" id="leapSlider" min="0" max="1" step="0.01" value="0.30">
     </div>
@@ -436,6 +481,7 @@ function normalizeRows(rows) {
   return rows.map(row => {
     let sum = 0;
     for (const v of row) sum += v;
+    if (sum === 0) return row.map(() => 1 / row.length);
     return row.map(v => v / sum);
   });
 }
@@ -736,54 +782,99 @@ function nearestChordToneSteps(rawSteps, chord, edo) {
   return best;
 }
 
-// Melody phrase driven directly by the Drum Cue matrix
+// Pentatonic mode scale builder from tuning
+function getPentatonicSteps(tuning) {
+  // Typical Pentatonic degrees: 0, 1, 2, 4, 5 relative to major diatonic
+  const pentDegrees = [0, 1, 2, 4, 5];
+  return pentDegrees.map(deg => tuning.scale[deg % tuning.scale.length]);
+}
+
+// Melody phrase driven directly by the user's custom Phrase Rhythm Sequencer and advanced constraints
 function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   const notes = [];
-  let degreeIndex = 0;
   const total16ths = chords.length * beatsPerBar * 4;
-  let currentDurRemaining = 0;
+
+  let lastPitchSteps = 0;
+  let isFirstNote = true;
 
   for (let step = 0; step < total16ths; step++) {
-    if (currentDurRemaining > 0) {
-      currentDurRemaining--;
-      continue;
-    }
-
     const stepIdx = step % 16;
-    const isHat = p.drumCues.hat[stepIdx];
-    const isSnare = p.drumCues.snare[stepIdx];
-    const isKick = p.drumCues.kick[stepIdx];
+    const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
 
-    // Seed: Drum cues dictate rhythmic density
-    let triggerProb = p.density * 0.3;
-    if (isHat) triggerProb += 0.4 * p.density;
-    if (isSnare) triggerProb += 0.6 * p.density;
-    if (isKick) triggerProb += 0.2 * p.density;
-
-    if (rng.next() < triggerProb) {
+    if (triggerActive) {
       const beatPos = step * 0.25;
       const chordIdx = Math.min(chords.length - 1, Math.floor(beatPos / beatsPerBar));
       const chord = chords[chordIdx];
 
-      // Duration snaps to grid based on cue intensity
-      let dur16ths = 1;
-      if (isSnare || (isKick && rng.next() > p.density)) dur16ths = 2;
-      currentDurRemaining = dur16ths - 1;
+      // Duration: scale slightly based on rhythmic density
+      const dur16ths = (p.density > 0.7) ? 1 : 2;
+      const durBeats = (dur16ths * 0.25) * 0.92;
 
-      // Seed: Determine leap based on slider
-      const stepScale = lerp(0.9, 3.0, p.leapProbability);
-      const stepWeights = new Float64Array(8);
-      for (let d = -3; d <= 4; d++) stepWeights[d + 3] = Math.exp(-Math.abs(d) / stepScale);
-      const leapStep = rng.weightedIndex(stepWeights) - 3;
-      
-      degreeIndex += leapStep;
-      degreeIndex = clamp(degreeIndex, DEGREE_LO, DEGREE_HI);
-      let steps = degreeIndexToSteps(degreeIndex, tuning);
+      // 1. Establish the tonal candidate steps relative to tuning
+      let candidateSteps = [];
 
-      // Seed: Snare and Kick anchor melody to pure chord tones
-      if (isKick || isSnare) steps = nearestChordToneSteps(steps, chord, tuning.edo);
+      if (p.tonalDistribution === 'chord_tones') {
+        candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
+      } else if (p.tonalDistribution === 'pentatonic') {
+        const pent = getPentatonicSteps(tuning);
+        candidateSteps = pent.map(steps => chord.rootSteps + steps);
+      } else if (p.tonalDistribution === 'chromatic') {
+        // High-tension chromatic steps stacked diatonically + some minor-step shifts
+        const base = tuning.scale.map(steps => chord.rootSteps + steps);
+        const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
+        candidateSteps = base.concat(chromaticShifts);
+      } else {
+        // diatonic_mos default
+        candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+      }
 
-      notes.push({ startBeat: beatPos, durBeats: (dur16ths * 0.25) * 0.92, steps: LEAD_OCTAVES * tuning.edo + steps });
+      // Filter empty list guard
+      if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
+
+      // 2. Compute motion weights based on conjunct vs disjunct slider
+      // and directional trends: -1 (down), 0 (balanced), +1 (up)
+      let bestCandidate = candidateSteps[0];
+      if (isFirstNote) {
+        bestCandidate = candidateSteps[Math.floor(rng.next() * candidateSteps.length)];
+        isFirstNote = false;
+      } else {
+        const candidateWeights = new Float64Array(candidateSteps.length);
+        for (let i = 0; i < candidateSteps.length; i++) {
+          const cand = candidateSteps[i];
+          const distSteps = Math.abs(cand - lastPitchSteps);
+
+          // Stepwise motion vs. skips/arpeggiation
+          // Motion Bias near 0 favors small distance, near 1 favors leaps/arpeggiation
+          const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, p.motionBias) * tuning.smallStep));
+
+          // Directional Trend biasing: positive trend favors pitch > last pitch, negative favors < last pitch
+          let dirAffinity = 1.0;
+          if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
+            dirAffinity = 1.0 + p.dirTrend * 3.0;
+          } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
+            dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
+          }
+
+          candidateWeights[i] = stepAffinity * dirAffinity;
+        }
+        const chosenIdx = rng.weightedIndex(candidateWeights);
+        bestCandidate = candidateSteps[chosenIdx];
+      }
+
+      lastPitchSteps = bestCandidate;
+
+      // 3. Anchor precisely within Preferred Octave Bounds
+      // base octave selection + random drift offset inside allowed limits
+      const baseOct = p.octaveBase !== undefined ? p.octaveBase : 2;
+      const driftLimit = p.octaveDrift !== undefined ? p.octaveDrift : 1;
+      const driftOffset = driftLimit > 0 ? Math.round(rng.range(-driftLimit, driftLimit + 0.99)) : 0;
+      const absoluteOctave = baseOct + driftOffset;
+
+      notes.push({
+        startBeat: beatPos,
+        durBeats: durBeats,
+        steps: absoluteOctave * tuning.edo + bestCandidate
+      });
     }
   }
   return notes;
@@ -1230,7 +1321,13 @@ const tuningSelect = $('tuningSelect'), customTuningBlock = $('customTuningBlock
 const styleSelect = $('styleSelect'), jazzBlock = $('jazzBlock');
 const secDomSlider = $('secDomSlider'), tritoneSubSlider = $('tritoneSubSlider'), extensionSlider = $('extensionSlider');
 const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlider = $('tensionSlider');
+
+// Panel 2 Phrase controls
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
+const phraseTonalDistributionSelect = $('phraseTonalDistributionSelect');
+const octaveBaseSlider = $('octaveBaseSlider'), octaveDriftSlider = $('octaveDriftSlider');
+const motionBiasSlider = $('motionBiasSlider'), dirTrendSlider = $('dirTrendSlider');
+
 const formantSelect = $('formantSelect'), customFormantBlock = $('customFormantBlock'), timelineFormantBlock = $('timelineFormantBlock'), formantTimelineInput = $('formantTimelineInput');
 const f1Slider = $('f1Slider'), f2Slider = $('f2Slider'), f3Slider = $('f3Slider');
 const evenSlider = $('evenSlider'), oddSlider = $('oddSlider'), memorySlider = $('memorySlider');
@@ -1262,7 +1359,10 @@ const drumCues = {
 
 const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
 
-// Initialize Rhythm Cue UI
+// 16-step Phrase custom sequencer cues
+const phraseRhythmCues = [1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0];
+
+// Initialize Drum Machine UI
 const drumUI = $('drumMachineUI');
 Object.keys(drumCues).forEach(instr => {
   const row = document.createElement('div'); row.className = 'drum-row';
@@ -1278,6 +1378,18 @@ Object.keys(drumCues).forEach(instr => {
     stepsDiv.appendChild(step);
   });
   row.appendChild(label); row.appendChild(stepsDiv); drumUI.appendChild(row);
+});
+
+// Initialize Phrase Rhythm UI
+const phraseStepsContainer = $('phraseRhythmSteps');
+phraseRhythmCues.forEach((val, stepIdx) => {
+  const step = document.createElement('div');
+  step.className = 'drum-step' + (val ? ' active' : '');
+  step.addEventListener('click', () => {
+    phraseRhythmCues[stepIdx] = phraseRhythmCues[stepIdx] ? 0 : 1;
+    step.classList.toggle('active');
+  });
+  phraseStepsContainer.appendChild(step);
 });
 
 // Initialize Spectral Evolution Sequencer UI
@@ -1442,6 +1554,7 @@ function saveChordFromEditor() {
   currentStateIndices[editingCellIndex] = stateIdx;
   if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = stateIdx;
 
+  surgicallyEditedNotes = null; // Reset surgical note edits when structure changes
   renderProgressionStrip(currentChords);
   reRenderFromEditedProgression();
 }
@@ -1530,6 +1643,15 @@ function readParams() {
     tension: parseFloat(tensionSlider.value),
     leapProbability: parseFloat(leapSlider.value),
     density: parseFloat(densitySlider.value),
+
+    // Advanced Phrase generator hyperparameters
+    tonalDistribution: phraseTonalDistributionSelect.value,
+    octaveBase: parseInt(octaveBaseSlider.value),
+    octaveDrift: parseInt(octaveDriftSlider.value),
+    motionBias: parseFloat(motionBiasSlider.value),
+    dirTrend: parseFloat(dirTrendSlider.value),
+    phraseRhythmCues: [...phraseRhythmCues],
+
     formantPreset: formantSelect.value,
     formantTimeline: formantTimelineInput.value,
     customF1: parseFloat(f1Slider.value), customF2: parseFloat(f2Slider.value), customF3: parseFloat(f3Slider.value),

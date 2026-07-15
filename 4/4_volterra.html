@@ -240,8 +240,53 @@
   </div>
 
   <div class="panel">
-    <h2>2 · Phrase Constraints</h2>
+    <h2>2 · Phrase Constraints &amp; Rhythm</h2>
+
+    <!-- 16-step PHRASE Rhythm Sequencer row -->
     <div class="control">
+      <label>Melodic Rhythm Sequencer</label>
+      <div class="drum-machine">
+        <div class="drum-row">
+          <div class="drum-label" style="width:55px;">PHRASE</div>
+          <div class="drum-steps" id="phraseRhythmSteps"></div>
+        </div>
+      </div>
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Define direct active rhythm steps for the lead melody phrase.</span>
+    </div>
+
+    <div class="control">
+      <label>Tonal Distribution</label>
+      <select id="phraseTonalDistributionSelect">
+        <option value="chord_tones" selected>Pure Chord Tones</option>
+        <option value="diatonic_mos">Diatonic MOS Scale</option>
+        <option value="pentatonic">Pentatonic Mode</option>
+        <option value="chromatic">Chromatic / High Tension</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Octave Base Preference <span class="val" id="octaveBaseVal">2</span></label>
+      <input type="range" id="octaveBaseSlider" min="-1" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Octave Drift Limit <span class="val" id="octaveDriftVal">1</span></label>
+      <input type="range" id="octaveDriftSlider" min="0" max="3" step="1" value="1">
+    </div>
+
+    <div class="control">
+      <label>Motion Bias <span class="val" id="motionBiasVal">0.50</span></label>
+      <input type="range" id="motionBiasSlider" min="0" max="1" step="0.01" value="0.50">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">0 = stepwise scale movement, 1 = skip/arpeggiation.</span>
+    </div>
+
+    <div class="control">
+      <label>Directional Trend <span class="val" id="dirTrendVal">0.00</span></label>
+      <input type="range" id="dirTrendSlider" min="-1" max="1" step="0.05" value="0.00">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">-1 = downward bias, 0 = balanced, +1 = upward bias.</span>
+    </div>
+
+    <div class="control" style="margin-top:14px; border-top:1px dashed var(--border); padding-top:14px;">
       <label>Leap bias <span class="val" id="leapVal">0.30</span></label>
       <input type="range" id="leapSlider" min="0" max="1" step="0.01" value="0.30">
     </div>
@@ -454,6 +499,7 @@ function normalizeRows(rows) {
   return rows.map(row => {
     let sum = 0;
     for (const v of row) sum += v;
+    if (sum === 0) return row.map(() => 1 / row.length);
     return row.map(v => v / sum);
   });
 }
@@ -744,49 +790,85 @@ function nearestChordToneSteps(rawSteps, chord, edo) {
   return best;
 }
 
+function getPentatonicSteps(tuning) {
+  const pentDegrees = [0, 1, 2, 4, 5];
+  return pentDegrees.map(deg => tuning.scale[deg % tuning.scale.length]);
+}
+
+// Melody phrase driven directly by the custom Phrase Rhythm Sequencer and advanced constraints
 function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   const notes = [];
-  let degreeIndex = 0;
   const total16ths = chords.length * beatsPerBar * 4;
-  let currentDurRemaining = 0;
+
+  let lastPitchSteps = 0;
+  let isFirstNote = true;
 
   for (let step = 0; step < total16ths; step++) {
-    if (currentDurRemaining > 0) {
-      currentDurRemaining--;
-      continue;
-    }
-
     const stepIdx = step % 16;
-    const isHat = p.drumCues.hat[stepIdx];
-    const isSnare = p.drumCues.snare[stepIdx];
-    const isKick = p.drumCues.kick[stepIdx];
+    const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
 
-    let triggerProb = p.density * 0.3;
-    if (isHat) triggerProb += 0.4 * p.density;
-    if (isSnare) triggerProb += 0.6 * p.density;
-    if (isKick) triggerProb += 0.2 * p.density;
-
-    if (rng.next() < triggerProb) {
+    if (triggerActive) {
       const beatPos = step * 0.25;
       const chordIdx = Math.min(chords.length - 1, Math.floor(beatPos / beatsPerBar));
       const chord = chords[chordIdx];
 
-      let dur16ths = 1;
-      if (isSnare || (isKick && rng.next() > p.density)) dur16ths = 2;
-      currentDurRemaining = dur16ths - 1;
+      const dur16ths = (p.density > 0.7) ? 1 : 2;
+      const durBeats = (dur16ths * 0.25) * 0.92;
 
-      const stepScale = lerp(0.9, 3.0, p.leapProbability);
-      const stepWeights = new Float64Array(8);
-      for (let d = -3; d <= 4; d++) stepWeights[d + 3] = Math.exp(-Math.abs(d) / stepScale);
-      const leapStep = rng.weightedIndex(stepWeights) - 3;
+      let candidateSteps = [];
 
-      degreeIndex += leapStep;
-      degreeIndex = clamp(degreeIndex, DEGREE_LO, DEGREE_HI);
-      let steps = degreeIndexToSteps(degreeIndex, tuning);
+      if (p.tonalDistribution === 'chord_tones') {
+        candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
+      } else if (p.tonalDistribution === 'pentatonic') {
+        const pent = getPentatonicSteps(tuning);
+        candidateSteps = pent.map(steps => chord.rootSteps + steps);
+      } else if (p.tonalDistribution === 'chromatic') {
+        const base = tuning.scale.map(steps => chord.rootSteps + steps);
+        const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
+        candidateSteps = base.concat(chromaticShifts);
+      } else {
+        candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+      }
 
-      if (isKick || isSnare) steps = nearestChordToneSteps(steps, chord, tuning.edo);
+      if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
 
-      notes.push({ startBeat: beatPos, durBeats: (dur16ths * 0.25) * 0.92, steps: LEAD_OCTAVES * tuning.edo + steps });
+      let bestCandidate = candidateSteps[0];
+      if (isFirstNote) {
+        bestCandidate = candidateSteps[Math.floor(rng.next() * candidateSteps.length)];
+        isFirstNote = false;
+      } else {
+        const candidateWeights = new Float64Array(candidateSteps.length);
+        for (let i = 0; i < candidateSteps.length; i++) {
+          const cand = candidateSteps[i];
+          const distSteps = Math.abs(cand - lastPitchSteps);
+
+          const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, p.motionBias) * tuning.smallStep));
+
+          let dirAffinity = 1.0;
+          if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
+            dirAffinity = 1.0 + p.dirTrend * 3.0;
+          } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
+            dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
+          }
+
+          candidateWeights[i] = stepAffinity * dirAffinity;
+        }
+        const chosenIdx = rng.weightedIndex(candidateWeights);
+        bestCandidate = candidateSteps[chosenIdx];
+      }
+
+      lastPitchSteps = bestCandidate;
+
+      const baseOct = p.octaveBase !== undefined ? p.octaveBase : 2;
+      const driftLimit = p.octaveDrift !== undefined ? p.octaveDrift : 1;
+      const driftOffset = driftLimit > 0 ? Math.round(rng.range(-driftLimit, driftLimit + 0.99)) : 0;
+      const absoluteOctave = baseOct + driftOffset;
+
+      notes.push({
+        startBeat: beatPos,
+        durBeats: durBeats,
+        steps: absoluteOctave * tuning.edo + bestCandidate
+      });
     }
   }
   return notes;
@@ -853,23 +935,7 @@ const SPECTRAL_KERNELS = {
   bimodal:  { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-((d - 2) ** 2) / (2 * s * s)) + Math.exp(-((d + 2) ** 2) / (2 * s * s)) },
 };
 
-/**
- * 2D Discrete Volterra Series Transform
- *
- * Maps the raw Markov chain transition amplitudes X(f, k) nonlinearly to Y(f, k).
- * Using defined kernels of 1st, 2nd, and 3rd order with exponential lag decay:
- *
- * Linear (1st order):
- *   L(f, k) = sum_{tau} sum_{kappa} X(f-tau, k-kappa) * e^(-alpha * tau - beta * |kappa|)
- * Quadratic (2nd order):
- *   Q(f, k) = sum_{tau1, tau2} sum_{kappa1, kappa2} X(f-tau1, k-kappa1) * X(f-tau2, k-kappa2) * e^(-alpha*(tau1+tau2) - beta*(|kappa1|+|kappa2|))
- * Cubic (3rd order):
- *   C(f, k) = sum_{tau1,2,3} sum_{kappa1,2,3} X_1 * X_2 * X_3 * e^(-alpha*(tau1+tau2+tau3) - beta*(|kappa1|+|kappa2|+|kappa3|))
- *
- * Exposes full interactive hyperparameters and allows sub-sampled scaling for Fidelity.
- */
 function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat = 0, secPerBeat = 0.5) {
-  // 1. Generate base Markov chain state matrix X[f][k]
   let trans = [];
   if (p.spectralDistribution === 'custom_markov' && p.customMarkovMatrix) {
     trans = p.customMarkovMatrix;
@@ -878,7 +944,7 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
     const centerSigma = lerp(0.5, 4.0, p.richness);
     const kernel = SPECTRAL_KERNELS[p.spectralDistribution] || SPECTRAL_KERNELS.gaussian;
     for (let i = 0; i < 7; i++) {
-      const row = new Float64Array(7); let sum = 0;
+      const row = new Float32Array(7); let sum = 0;
       for (let j = 0; j < 7; j++) {
         const step = kernel.step(j - i, stepSigma);
         const pull = kernel.pull(j - SPECTRAL_CENTER, centerSigma);
@@ -895,7 +961,7 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
   const framesPerBeat = 1.0 / (FRAME_HOP_SEC / secPerBeat);
 
   for (let f = 0; f < numFrames; f++) {
-    const col = new Float64Array(numHarmonics + 1);
+    const col = new Float32Array(numHarmonics + 1);
     const currentBeat = startBeat + f / framesPerBeat;
     const step16th = Math.floor(currentBeat * 4) % 16;
     const rhythmTriggerActive = p.spectralCues && p.spectralCues[step16th];
@@ -913,7 +979,6 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
     rawX.push(col);
   }
 
-  // 2. Perform 2D Volterra Series transformation to build Y[f][k]
   const Y = [];
   const tau_max = p.volterraTimeLag !== undefined ? p.volterraTimeLag : 2;
   const kappa_max = p.volterraFreqLag !== undefined ? p.volterraFreqLag : 2;
@@ -924,7 +989,6 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
   const beta = p.volterraBeta !== undefined ? p.volterraBeta : 0.4;
   const order = p.volterraOrder !== undefined ? p.volterraOrder : 2;
 
-  // Pre-calculate temporal and spectral weight coefficients to speed up the loop
   const tempWeights = new Float64Array(tau_max + 1);
   for (let t = 0; t <= tau_max; t++) tempWeights[t] = Math.exp(-alpha * t);
 
@@ -933,7 +997,6 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
     specWeights[k + kappa_max] = Math.exp(-beta * Math.abs(k));
   }
 
-  // Double resolution boundaries check helper
   const getX = (fi, ki) => {
     if (fi < 0) fi = 0;
     if (fi >= numFrames) fi = numFrames - 1;
@@ -943,10 +1006,9 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
   };
 
   for (let f = 0; f < numFrames; f++) {
-    const colY = new Float64Array(numHarmonics + 1);
+    const colY = new Float32Array(numHarmonics + 1);
 
     for (let k = 1; k <= numHarmonics; k++) {
-      // 1st-Order (Linear Filtering)
       let L = 0;
       for (let t = 0; t <= tau_max; t++) {
         const wt = tempWeights[t];
@@ -956,7 +1018,6 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
         }
       }
 
-      // 2nd-Order (Quadratic Cross-terms)
       let Q = 0;
       if (order >= 2) {
         for (let t1 = 0; t1 <= tau_max; t1++) {
@@ -977,10 +1038,8 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
         }
       }
 
-      // 3rd-Order (Cubic Cross-terms)
       let C = 0;
       if (order >= 3) {
-        // Sub-sample loop or perform targeted cubic transform to optimize render speeds
         for (let t1 = 0; t1 <= tau_max; t1++) {
           const wt1 = tempWeights[t1];
           for (let kp1 = -kappa_max; kp1 <= kappa_max; kp1 += (tau_max > 1 ? 2 : 1)) {
@@ -991,10 +1050,9 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
             }
           }
         }
-        C *= 0.55; // Calibrate level
+        C *= 0.55;
       }
 
-      // Assemble non-linear transform output
       let val = c1 * L + c2 * Q + c3 * C;
       if (val < 0) val = 0;
       colY[k] = val;
@@ -1230,7 +1288,12 @@ const tuningSelect = $('tuningSelect'), customTuningBlock = $('customTuningBlock
 const styleSelect = $('styleSelect'), jazzBlock = $('jazzBlock');
 const secDomSlider = $('secDomSlider'), tritoneSubSlider = $('tritoneSubSlider'), extensionSlider = $('extensionSlider');
 const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlider = $('tensionSlider');
+
+// Panel 2 Phrase controls
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
+const phraseTonalDistributionSelect = $('phraseTonalDistributionSelect');
+const octaveBaseSlider = $('octaveBaseSlider'), octaveDriftSlider = $('octaveDriftSlider');
+const motionBiasSlider = $('motionBiasSlider'), dirTrendSlider = $('dirTrendSlider');
 
 // Volterra UI elements
 const fidelitySelect = $('fidelitySelect');
@@ -1266,6 +1329,9 @@ const drumCues = {
 
 const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
 
+// 16-step Phrase custom sequencer cues
+const phraseRhythmCues = [1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0];
+
 // Initialize Drum Machine UI
 const drumUI = $('drumMachineUI');
 Object.keys(drumCues).forEach(instr => {
@@ -1282,6 +1348,18 @@ Object.keys(drumCues).forEach(instr => {
     stepsDiv.appendChild(step);
   });
   row.appendChild(label); row.appendChild(stepsDiv); drumUI.appendChild(row);
+});
+
+// Initialize Phrase Rhythm UI
+const phraseStepsContainer = $('phraseRhythmSteps');
+phraseRhythmCues.forEach((val, stepIdx) => {
+  const step = document.createElement('div');
+  step.className = 'drum-step' + (val ? ' active' : '');
+  step.addEventListener('click', () => {
+    phraseRhythmCues[stepIdx] = phraseRhythmCues[stepIdx] ? 0 : 1;
+    step.classList.toggle('active');
+  });
+  phraseStepsContainer.appendChild(step);
 });
 
 // Initialize Spectral Evolution Sequencer UI
@@ -1439,6 +1517,7 @@ function saveChordFromEditor() {
   currentStateIndices[editingCellIndex] = stateIdx;
   if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = stateIdx;
 
+  surgicallyEditedNotes = null; // Reset surgical note edits when structure changes
   renderProgressionStrip(currentChords);
   reRenderFromEditedProgression();
 }
@@ -1532,6 +1611,14 @@ function readParams() {
     tension: parseFloat(tensionSlider.value),
     leapProbability: parseFloat(leapSlider.value),
     density: parseFloat(densitySlider.value),
+
+    // Advanced Phrase generator hyperparameters
+    tonalDistribution: phraseTonalDistributionSelect.value,
+    octaveBase: parseInt(octaveBaseSlider.value),
+    octaveDrift: parseInt(octaveDriftSlider.value),
+    motionBias: parseFloat(motionBiasSlider.value),
+    dirTrend: parseFloat(dirTrendSlider.value),
+    phraseRhythmCues: [...phraseRhythmCues],
 
     // Volterra Parameters
     fidelity: fidelitySelect.value,
