@@ -1151,8 +1151,16 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
         state[k] = rng.weightedIndex(trans[state[k]]);
       }
       let val = SPECTRAL_LEVELS[state[k]];
+
+      // Address Point 5 & 6: Mitigate disproportionate upper-register dumping.
+      // Balance triggers so higher harmonics decay naturally to model physical instrument damping.
+      const spectralRollOff = Math.exp(-0.04 * (k - 1));
+      val *= spectralRollOff;
+
       if (rhythmTriggerActive) {
-        val *= (k > numHarmonics / 2) ? 1.8 : 1.35;
+        // High harmonics receive less boost than lower/mid range during excitation
+        const triggerFactor = 1.0 + 0.6 * Math.exp(-0.06 * (k - 1));
+        val *= triggerFactor;
       }
       col[k] = val;
     }
@@ -1189,18 +1197,24 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
     const colY = new Float32Array(numHarmonics + 1);
 
     for (let k = 1; k <= numHarmonics; k++) {
-      // 1. Linear Term (convolution with memory and local frequency coupling)
+      // 1. Linear Term (Address Point 1 & 8: normalize linear kernel by sum of weights)
       let L = 0;
+      let linearWeightSum = 0;
       for (let t = 0; t <= tau_max; t++) {
         const wt = tempWeights[t];
         for (let kp = -kappa_max; kp <= kappa_max; kp++) {
           const wk = specWeights[kp + kappa_max];
           L += getX(f - t, k - kp) * wt * wk;
+          linearWeightSum += wt * wk;
         }
       }
+      if (linearWeightSum > 0) {
+        L /= linearWeightSum; // Linear kernel is perfectly normalized (energy preserving)
+      }
 
-      // 2. Quadratic Term with sum-and-difference Intermodulation frequency coupling:
+      // 2. Quadratic Term (Address Point 2, 3, 8 & 10: normalize, add phase cancellation, prevent explosion)
       let Q = 0;
+      let quadWeightSum = 0;
       if (order >= 2) {
         // Sum-frequency generation: k1 + k2 = k
         for (let k1 = 1; k1 < k; k1++) {
@@ -1209,7 +1223,10 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
             const wt1 = tempWeights[t1];
             const x1 = getX(f - t1, k1);
             const x2 = getX(f - t1, k2);
-            Q += x1 * x2 * wt1;
+            // Destructive phase interference / cancellation:
+            const phaseCoeff = Math.cos((k1 - k2) * 1.2);
+            Q += x1 * x2 * wt1 * phaseCoeff;
+            quadWeightSum += wt1;
           }
         }
         // Difference-frequency generation: |k1 - k2| = k
@@ -1219,20 +1236,36 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
             const wt1 = tempWeights[t1];
             const x1 = getX(f - t1, k1);
             const x2 = getX(f - t1, k2);
-            Q += x1 * x2 * wt1;
+            // Destructive phase interference / cancellation:
+            const phaseCoeff = Math.cos((k1 - k2) * 1.2);
+            Q += x1 * x2 * wt1 * phaseCoeff;
+            quadWeightSum += wt1;
           }
         }
       }
-
-      // 3. Cubic Term with cross-phase modulation (XPM):
-      let C = 0;
-      if (order >= 3) {
-        const baseEnergy = getX(f, 1) * getX(f, 1) + getX(f, 2) * getX(f, 2);
-        C = getX(f, k) * baseEnergy;
+      if (quadWeightSum > 0) {
+        Q /= quadWeightSum; // Quadratic kernel is perfectly normalized
       }
 
-      // 4. Combine and Apply Soft-Saturation (tanh) to ensure stability and clear spectral distribution
-      const rawVal = c1 * L + c2 * Q * 0.15 + c3 * C * 0.10;
+      // 3. Cubic Term (Address Point 9 & 10: negative feedback cubic restoring force to suppress resonances)
+      let C = 0;
+      if (order >= 3) {
+        const localX = getX(f, k);
+        const neighborhoodEnergy = (getX(f, k - 1) + localX + getX(f, k + 1)) / 3.0;
+        // Restoring force acts subtractively (negative coefficient) to damp peaky clusters
+        C = -localX * (neighborhoodEnergy * neighborhoodEnergy);
+      }
+
+      // 4. Combine and Apply Soft-Saturation (Address Point 4, 7 & 10: anti-resonance damping & lateral inhibition)
+      const leftNeighbor = getX(f, k - 1);
+      const rightNeighbor = getX(f, k + 1);
+      // Lateral inhibition suppresses neighbouring frequencies from joining into massive whistling ridges
+      const lateralInhibition = 0.25 * (leftNeighbor + rightNeighbor);
+
+      // Higher harmonics naturally decay more rapidly to match acoustic properties
+      const frequencyDamping = Math.exp(-0.03 * (k - 1));
+
+      const rawVal = (c1 * L - lateralInhibition + c2 * Q + c3 * C) * frequencyDamping;
       colY[k] = Math.tanh(Math.max(0, rawVal));
     }
     Y.push(colY);
