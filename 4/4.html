@@ -84,6 +84,10 @@
   .drum-step { aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; min-height: 14px; }
   .drum-step:nth-child(4n) { margin-right: 2px; }
   .drum-step.active { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(82, 214, 198, 0.4); }
+  .drum-step.has-custom-env {
+    border: 1px double var(--phosphor) !important;
+    box-shadow: 0 0 6px rgba(232, 163, 61, 0.7);
+  }
   .cue-desc { font-size: 10px; color: var(--muted); line-height: 1.4; margin-top: 10px; font-style: italic; }
 
   .popover-backdrop{position:fixed;inset:0;background:rgba(10,12,16,0.6);z-index:40;display:none;align-items:flex-end;justify-content:center;}
@@ -173,6 +177,33 @@
     <div class="popover-actions" style="margin-top:15px;">
       <button type="button" id="chordEditLockBtn">🔓 lock</button>
       <button type="button" id="chordEditClose">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="popover-backdrop" id="stepEnvPopover">
+  <div class="popover-panel">
+    <h3 id="stepEnvTitle">Edit Step Envelope</h3>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Step Attack Time <span class="val" id="stepAttackVal">0.27s</span></label>
+      <input type="range" id="stepAttackSlider" min="0.005" max="2.0" step="0.005" value="0.27">
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Step Release Time <span class="val" id="stepReleaseVal">0.91s</span></label>
+      <input type="range" id="stepReleaseSlider" min="0.01" max="4.0" step="0.01" value="0.91">
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Step Gain / Velocity <span class="val" id="stepGainVal">1.00x</span></label>
+      <input type="range" id="stepGainSlider" min="0.0" max="2.0" step="0.02" value="1.00">
+    </div>
+
+    <div class="popover-actions" style="margin-top:20px;">
+      <button type="button" id="stepEnvReset" style="border-color: var(--warn); color: var(--warn);">Reset to Global</button>
+      <button type="button" id="stepEnvSave" style="border-color: var(--cyan); color: var(--cyan);">Save</button>
+      <button type="button" id="stepEnvClose">Cancel</button>
     </div>
   </div>
 </div>
@@ -893,7 +924,9 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       notes.push({
         startBeat: beatPos,
         durBeats: durBeats,
-        steps: absoluteOctave * tuning.edo + bestCandidate
+        steps: absoluteOctave * tuning.edo + bestCandidate,
+        seqType: 'phrase',
+        stepIdx: stepIdx
       });
     }
   }
@@ -914,7 +947,14 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
       if (gateActive) {
         const startBeat = absoluteStep * 0.25;
         chord.toneSteps.forEach((iv, j) => {
-          padNotes.push({ startBeat, durBeats: 0.22, steps: PAD_OCTAVES * tuning.edo + chord.rootSteps + iv, voiceIndex: j });
+          padNotes.push({
+            startBeat,
+            durBeats: 0.22,
+            steps: PAD_OCTAVES * tuning.edo + chord.rootSteps + iv,
+            voiceIndex: j,
+            seqType: 'ch_pulse',
+            stepIdx: absoluteStep % 32
+          });
         });
       }
     }
@@ -938,14 +978,32 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
     const isSyncop = p.drumCues.syncop[stepIdx];
 
     if (isRoot) {
-      bassNotes.push({ startBeat: beat, durBeats: 0.45, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps });
+      bassNotes.push({
+        startBeat: beat,
+        durBeats: 0.45,
+        steps: BASS_OCTAVES * tuning.edo + chord.rootSteps,
+        seqType: 'b_root',
+        stepIdx: stepIdx
+      });
       currentBassDurRemaining = 1;
     } else if (isPassing && p.jazzEnabled) {
       const tone = chord.toneSteps[Math.min(2, chord.toneSteps.length - 1)];
-      bassNotes.push({ startBeat: beat, durBeats: 0.25, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + tone });
+      bassNotes.push({
+        startBeat: beat,
+        durBeats: 0.25,
+        steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + tone,
+        seqType: 'passing',
+        stepIdx: stepIdx
+      });
     } else if (isSyncop && rng.next() < p.density) {
       const syncopatedTone = (rng.next() > 0.5 ? 1 : -1) * tuning.smallStep;
-      bassNotes.push({ startBeat: beat, durBeats: 0.15, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + syncopatedTone });
+      bassNotes.push({
+        startBeat: beat,
+        durBeats: 0.15,
+        steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + syncopatedTone,
+        seqType: 'syncop',
+        stepIdx: stepIdx
+      });
     }
   }
 
@@ -1388,6 +1446,112 @@ const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,
 // 32-step Phrase custom sequencer cues
 const phraseRhythmCues = [1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0, 1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0];
 
+// Step-specific custom envelopes state
+let customStepEnvelopes = {}; // key: `${sequencerType}_${stepIdx}` -> { attack: num, release: num, gain: num }
+
+let activeMenuSeqType = null;
+let activeMenuStepIdx = null;
+let activeMenuElement = null;
+
+const stepEnvPopover = $('stepEnvPopover');
+const stepEnvTitle = $('stepEnvTitle');
+const stepAttackSlider = $('stepAttackSlider');
+const stepAttackVal = $('stepAttackVal');
+const stepReleaseSlider = $('stepReleaseSlider');
+const stepReleaseVal = $('stepReleaseVal');
+const stepGainSlider = $('stepGainSlider');
+const stepGainVal = $('stepGainVal');
+
+function updateStepEnvClass(element, seqType, stepIdx) {
+  const key = `${seqType}_${stepIdx}`;
+  if (customStepEnvelopes[key]) {
+    element.classList.add('has-custom-env');
+  } else {
+    element.classList.remove('has-custom-env');
+  }
+}
+
+function handleStepRightClick(e, seqType, stepIdx, element) {
+  e.preventDefault();
+  openStepEnvelopeMenu(seqType, stepIdx, element);
+}
+
+function openStepEnvelopeMenu(seqType, stepIdx, element) {
+  activeMenuSeqType = seqType;
+  activeMenuStepIdx = stepIdx;
+  activeMenuElement = element;
+
+  stepEnvTitle.textContent = `Edit Step Envelope — [${seqType.toUpperCase()} Step ${stepIdx + 1}]`;
+
+  const key = `${seqType}_${stepIdx}`;
+  const env = customStepEnvelopes[key];
+
+  if (env) {
+    stepAttackSlider.value = env.attack;
+    stepReleaseSlider.value = env.release;
+    stepGainSlider.value = env.gain;
+  } else {
+    // Fall back to current global presets
+    const p = readParams();
+    stepAttackSlider.value = mapAttackSec(p.attack);
+    stepReleaseSlider.value = mapReleaseSec(p.release);
+    stepGainSlider.value = 1.0;
+  }
+
+  // Update popup value display text
+  stepAttackVal.textContent = parseFloat(stepAttackSlider.value).toFixed(2) + 's';
+  stepReleaseVal.textContent = parseFloat(stepReleaseSlider.value).toFixed(2) + 's';
+  stepGainVal.textContent = parseFloat(stepGainSlider.value).toFixed(2) + 'x';
+
+  stepEnvPopover.classList.add('open');
+}
+
+// Hook up step envelope popover slider changes real-time
+stepAttackSlider.addEventListener('input', () => {
+  stepAttackVal.textContent = parseFloat(stepAttackSlider.value).toFixed(2) + 's';
+});
+stepReleaseSlider.addEventListener('input', () => {
+  stepReleaseVal.textContent = parseFloat(stepReleaseSlider.value).toFixed(2) + 's';
+});
+stepGainSlider.addEventListener('input', () => {
+  stepGainVal.textContent = parseFloat(stepGainSlider.value).toFixed(2) + 'x';
+});
+
+$('stepEnvClose').addEventListener('click', () => {
+  stepEnvPopover.classList.remove('open');
+});
+stepEnvPopover.addEventListener('click', (e) => {
+  if (e.target === stepEnvPopover) {
+    stepEnvPopover.classList.remove('open');
+  }
+});
+
+$('stepEnvSave').addEventListener('click', () => {
+  if (activeMenuSeqType !== null && activeMenuStepIdx !== null) {
+    const key = `${activeMenuSeqType}_${activeMenuStepIdx}`;
+    customStepEnvelopes[key] = {
+      attack: parseFloat(stepAttackSlider.value),
+      release: parseFloat(stepReleaseSlider.value),
+      gain: parseFloat(stepGainSlider.value)
+    };
+    if (activeMenuElement) {
+      updateStepEnvClass(activeMenuElement, activeMenuSeqType, activeMenuStepIdx);
+    }
+  }
+  stepEnvPopover.classList.remove('open');
+});
+
+$('stepEnvReset').addEventListener('click', () => {
+  if (activeMenuSeqType !== null && activeMenuStepIdx !== null) {
+    const key = `${activeMenuSeqType}_${activeMenuStepIdx}`;
+    delete customStepEnvelopes[key];
+    if (activeMenuElement) {
+      updateStepEnvClass(activeMenuElement, activeMenuSeqType, activeMenuStepIdx);
+    }
+  }
+  stepEnvPopover.classList.remove('open');
+});
+
 // Initialize Drum Machine UI
 const drumUI = $('drumMachineUI');
 Object.keys(drumCues).forEach(instr => {
@@ -1397,11 +1561,14 @@ Object.keys(drumCues).forEach(instr => {
   drumCues[instr].forEach((val, stepIdx) => {
     const step = document.createElement('div');
     step.className = 'drum-step' + (val ? ' active' : '');
-    step.title = `Step ${stepIdx + 1}`;
+    step.title = `Step ${stepIdx + 1} (Right-click to edit envelope)`;
+    step.dataset.seq = instr;
+    step.dataset.stepIdx = stepIdx;
     step.addEventListener('click', () => {
       drumCues[instr][stepIdx] = drumCues[instr][stepIdx] ? 0 : 1;
       step.classList.toggle('active');
     });
+    step.addEventListener('contextmenu', (e) => handleStepRightClick(e, instr, stepIdx, step));
     stepsDiv.appendChild(step);
   });
   row.appendChild(label); row.appendChild(stepsDiv); drumUI.appendChild(row);
@@ -1412,11 +1579,14 @@ const phraseStepsContainer = $('phraseRhythmSteps');
 phraseRhythmCues.forEach((val, stepIdx) => {
   const step = document.createElement('div');
   step.className = 'drum-step' + (val ? ' active' : '');
-  step.title = `Step ${stepIdx + 1}`;
+  step.title = `Step ${stepIdx + 1} (Right-click to edit envelope)`;
+  step.dataset.seq = 'phrase';
+  step.dataset.stepIdx = stepIdx;
   step.addEventListener('click', () => {
     phraseRhythmCues[stepIdx] = phraseRhythmCues[stepIdx] ? 0 : 1;
     step.classList.toggle('active');
   });
+  step.addEventListener('contextmenu', (e) => handleStepRightClick(e, 'phrase', stepIdx, step));
   phraseStepsContainer.appendChild(step);
 });
 
@@ -1425,11 +1595,14 @@ const spectralStepsContainer = $('spectralRhythmSteps');
 spectralCues.forEach((val, stepIdx) => {
   const step = document.createElement('div');
   step.className = 'drum-step' + (val ? ' active' : '');
-  step.title = `Step ${stepIdx + 1}`;
+  step.title = `Step ${stepIdx + 1} (Right-click to edit envelope)`;
+  step.dataset.seq = 'spectral';
+  step.dataset.stepIdx = stepIdx;
   step.addEventListener('click', () => {
     spectralCues[stepIdx] = spectralCues[stepIdx] ? 0 : 1;
     step.classList.toggle('active');
   });
+  step.addEventListener('contextmenu', (e) => handleStepRightClick(e, 'spectral', stepIdx, step));
   spectralStepsContainer.appendChild(step);
 });
 
@@ -1715,7 +1888,7 @@ function ensureAudioContext() {
   if (audioCtx.state === 'suspended') audioCtx.resume();
 }
 
-async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx) {
+async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx, defaultSeqType) {
   const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
   let i = 0;
   for (const note of notes) {
@@ -1728,7 +1901,24 @@ async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx) {
     const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
     const image = buildSpectralImage(rng, template, numFrames, p, note.startBeat, secPerBeat);
     const pan = panFn(note);
-    renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, image, frameHopSamples, attackSec, releaseSec, gain, pan);
+
+    // Resolve step envelope overrides
+    const seqType = note.seqType || defaultSeqType;
+    const stepIdx = note.stepIdx !== undefined ? note.stepIdx : (Math.round(note.startBeat / 0.25) % 32);
+    const envKey = `${seqType}_${stepIdx}`;
+    const customEnv = customStepEnvelopes[envKey];
+
+    let noteAttackSec = attackSec;
+    let noteReleaseSec = releaseSec;
+    let noteGain = gain;
+
+    if (customEnv) {
+      noteAttackSec = customEnv.attack;
+      noteReleaseSec = customEnv.release;
+      noteGain = gain * customEnv.gain;
+    }
+
+    renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, image, frameHopSamples, noteAttackSec, noteReleaseSec, noteGain, pan);
 
     if (collectViz) {
       const noteStartFrame = Math.floor(startSample / frameHopSamples);
@@ -1817,11 +2007,11 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const padPans = [-0.55, 0.2, 0.55, -0.15];
 
   onProgress('rendering lead…');
-  await renderVoiceAsync(leadNotes, 0.5, () => 0, true, ctx);
+  await renderVoiceAsync(leadNotes, 0.5, () => 0, true, ctx, 'phrase');
   onProgress('rendering pad…');
-  await renderVoiceAsync(padNotes, 0.25, n => padPans[(n.voiceIndex || 0) % padPans.length], false, ctx);
+  await renderVoiceAsync(padNotes, 0.25, n => padPans[(n.voiceIndex || 0) % padPans.length], false, ctx, 'ch_pulse');
   onProgress('rendering bass…');
-  await renderVoiceAsync(bassNotes, 0.55, () => 0, false, ctx);
+  await renderVoiceAsync(bassNotes, 0.55, () => 0, false, ctx, 'b_root');
 
   onProgress('reverb…');
   await new Promise(r => setTimeout(r, 0));
