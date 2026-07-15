@@ -79,7 +79,7 @@
   /* Drum Machine Styles */
   .drum-machine { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;}
   .drum-row { display: flex; align-items: center; gap: 8px; }
-  .drum-label { width: 45px; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+  .drum-label { width: 72px; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
   .drum-steps { display: flex; gap: 4px; flex: 1; }
   .drum-step { flex: 1; aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; }
   .drum-step:nth-child(4n) { margin-right: 4px; }
@@ -301,10 +301,13 @@
     <div class="drum-machine" id="drumMachineUI">
       </div>
     <div class="cue-desc">
-      * Matrix triggers event data, not audio. <br>
-      KICK seeds bass roots & anchors lead melody.<br>
-      SNARE seeds rhythmic passing tones.<br>
-      HAT seeds arpeggiation density & syncopation.
+      * Matrix triggers event data, not direct audio. <br>
+      B_ROOT: Seeds bass roots (groove core).<br>
+      M_ANCH: Anchors lead melody on strategic beats.<br>
+      PASSING: Triggers diatonic/rhythmic passing tones.<br>
+      ARPEGG: Controls melody arpeggiation behavior.<br>
+      SYNCOP: Triggers groovy syncopated off-beats.<br>
+      CH_PULSE: Directs chord pad rhythmic gating pulses.
     </div>
   </div>
 
@@ -813,18 +816,20 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       // 1. Establish the tonal candidate steps relative to tuning
       let candidateSteps = [];
 
-      if (p.tonalDistribution === 'chord_tones') {
+      // Influence candidate steps based on ARPEGG master cue layer (forces chord tone arpeggiation)
+      const forceArpegg = p.drumCues && p.drumCues.arpegg && p.drumCues.arpegg[stepIdx];
+      const isAnchorBeat = p.drumCues && p.drumCues.m_anch && p.drumCues.m_anch[stepIdx];
+
+      if (p.tonalDistribution === 'chord_tones' || forceArpegg || isAnchorBeat) {
         candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
       } else if (p.tonalDistribution === 'pentatonic') {
         const pent = getPentatonicSteps(tuning);
         candidateSteps = pent.map(steps => chord.rootSteps + steps);
       } else if (p.tonalDistribution === 'chromatic') {
-        // High-tension chromatic steps stacked diatonically + some minor-step shifts
         const base = tuning.scale.map(steps => chord.rootSteps + steps);
         const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
         candidateSteps = base.concat(chromaticShifts);
       } else {
-        // diatonic_mos default
         candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
       }
 
@@ -843,11 +848,14 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
           const cand = candidateSteps[i];
           const distSteps = Math.abs(cand - lastPitchSteps);
 
-          // Stepwise motion vs. skips/arpeggiation
-          // Motion Bias near 0 favors small distance, near 1 favors leaps/arpeggiation
-          const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, p.motionBias) * tuning.smallStep));
+          // If ARPEGG cue is active, we heavily bias towards skip/arpeggiation steps (disjunct skips)
+          // If PASSING cue is active, we heavily bias towards stepwise scale movement (conjunct)
+          let biasScalar = p.motionBias;
+          if (forceArpegg) biasScalar = 0.9;
+          else if (p.drumCues && p.drumCues.passing && p.drumCues.passing[stepIdx]) biasScalar = 0.1;
 
-          // Directional Trend biasing: positive trend favors pitch > last pitch, negative favors < last pitch
+          const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, biasScalar) * tuning.smallStep));
+
           let dirAffinity = 1.0;
           if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
             dirAffinity = 1.0 + p.dirTrend * 3.0;
@@ -864,7 +872,6 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       lastPitchSteps = bestCandidate;
 
       // 3. Anchor precisely within Preferred Octave Bounds
-      // base octave selection + random drift offset inside allowed limits
       const baseOct = p.octaveBase !== undefined ? p.octaveBase : 2;
       const driftLimit = p.octaveDrift !== undefined ? p.octaveDrift : 1;
       const driftOffset = driftLimit > 0 ? Math.round(rng.range(-driftLimit, driftLimit + 0.99)) : 0;
@@ -886,12 +893,18 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
   const totalBeats = chords.length * beatsPerBar;
   const total16ths = totalBeats * 4;
 
-  // Pad remains fully sustained structural beds
+  // Pad remains structured structural beds, gated via CH_PULSE (chord pad gating pulse) cue
   chords.forEach((chord, i) => {
-    const startBeat = i * beatsPerBar;
-    chord.toneSteps.forEach((iv, j) => {
-      padNotes.push({ startBeat, durBeats: beatsPerBar * 0.95, steps: PAD_OCTAVES * tuning.edo + chord.rootSteps + iv, voiceIndex: j });
-    });
+    for (let stepOfBar = 0; stepOfBar < beatsPerBar * 4; stepOfBar++) {
+      const absoluteStep = i * beatsPerBar * 4 + stepOfBar;
+      const gateActive = p.drumCues.ch_pulse[stepOfBar];
+      if (gateActive) {
+        const startBeat = absoluteStep * 0.25;
+        chord.toneSteps.forEach((iv, j) => {
+          padNotes.push({ startBeat, durBeats: 0.22, steps: PAD_OCTAVES * tuning.edo + chord.rootSteps + iv, voiceIndex: j });
+        });
+      }
+    }
   });
 
   // Bass is entirely seeded by the Rhythm Master Matrix
@@ -907,20 +920,17 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
     const chordIdx = Math.min(chords.length - 1, Math.floor(beat / beatsPerBar));
     const chord = chords[chordIdx];
 
-    const isKick = p.drumCues.kick[stepIdx];
-    const isSnare = p.drumCues.snare[stepIdx];
-    const isHat = p.drumCues.hat[stepIdx];
+    const isRoot = p.drumCues.b_root[stepIdx];
+    const isPassing = p.drumCues.passing[stepIdx];
+    const isSyncop = p.drumCues.syncop[stepIdx];
 
-    if (isKick) {
-      // Seed: Anchor on root on kick hits
+    if (isRoot) {
       bassNotes.push({ startBeat: beat, durBeats: 0.45, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps });
-      currentBassDurRemaining = 1; // Take up 8th note duration
-    } else if (isSnare && p.jazzEnabled) {
-      // Seed: Snares pull out passing tones
+      currentBassDurRemaining = 1;
+    } else if (isPassing && p.jazzEnabled) {
       const tone = chord.toneSteps[Math.min(2, chord.toneSteps.length - 1)];
       bassNotes.push({ startBeat: beat, durBeats: 0.25, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + tone });
-    } else if (isHat && rng.next() < p.density) {
-      // Seed: High hat density causes groovy staccato ghost notes
+    } else if (isSyncop && rng.next() < p.density) {
       const syncopatedTone = (rng.next() > 0.5 ? 1 : -1) * tuning.smallStep;
       bassNotes.push({ startBeat: beat, durBeats: 0.15, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + syncopatedTone });
     }
@@ -1352,9 +1362,12 @@ Object.entries(TUNING_SYSTEMS).forEach(([edo, label]) => { const o = document.cr
 
 // Master Rhythm Cues 
 const drumCues = {
-  kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
-  snare: [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
-  hat:   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1]
+  b_root:   [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+  m_anch:   [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+  passing:  [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+  arpegg:   [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
+  syncop:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 0,1,0,0],
+  ch_pulse: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0]
 };
 
 const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
@@ -1662,7 +1675,14 @@ function readParams() {
     spectralCues: [...spectralCues],
     attack: parseFloat(attackSlider.value), release: parseFloat(releaseSlider.value),
     brightness: parseFloat(brightnessSlider.value), space: parseFloat(spaceSlider.value), gain: parseFloat(gainSlider.value),
-    drumCues: { kick: [...drumCues.kick], snare: [...drumCues.snare], hat: [...drumCues.hat] }
+    drumCues: {
+      b_root: [...drumCues.b_root],
+      m_anch: [...drumCues.m_anch],
+      passing: [...drumCues.passing],
+      arpegg: [...drumCues.arpegg],
+      syncop: [...drumCues.syncop],
+      ch_pulse: [...drumCues.ch_pulse]
+    }
   };
 }
 
