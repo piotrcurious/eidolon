@@ -80,9 +80,9 @@
   .drum-machine { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;}
   .drum-row { display: flex; align-items: center; gap: 8px; }
   .drum-label { width: 72px; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
-  .drum-steps { display: flex; gap: 4px; flex: 1; }
-  .drum-step { flex: 1; aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; }
-  .drum-step:nth-child(4n) { margin-right: 4px; }
+  .drum-steps { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; flex: 1; }
+  .drum-step { aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; min-height: 14px; }
+  .drum-step:nth-child(4n) { margin-right: 2px; }
   .drum-step.active { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(82, 214, 198, 0.4); }
   .cue-desc { font-size: 10px; color: var(--muted); line-height: 1.4; margin-top: 10px; font-style: italic; }
 
@@ -231,7 +231,7 @@
     </div>
     <div class="control">
       <label>Bars <span class="val" id="barsVal">8</span></label>
-      <input type="range" id="barsSlider" min="4" max="32" step="1" value="8">
+      <input type="range" id="barsSlider" min="4" max="128" step="1" value="8">
     </div>
     <div class="control">
       <label>Tension / chromaticism <span class="val" id="tensionVal">0.18</span></label>
@@ -588,7 +588,7 @@ function getDiatonicStep(fromDegree, toDegree, tuning) {
 
 function resolveChordTones(st, tuning, extensions, isTritoneSub) {
   const edo = tuning.edo;
-  const degree = st.degree;
+  const degree = st.degree !== undefined ? st.degree : 0;
 
   // Base diatonic steps stacked from scale degrees
   const t3_diatonic = getDiatonicStep(degree, (degree + 2) % 7, tuning);
@@ -622,6 +622,9 @@ function resolveChordTones(st, tuning, extensions, isTritoneSub) {
     t3 = centsToSteps(315.6, edo);
     t5 = centsToSteps(600.0, edo);
     t7 = centsToSteps(884.4, edo);
+  } else if (quality === 'aug') {
+    t3 = centsToSteps(386.3, edo);
+    t5 = centsToSteps(813.7, edo);
   }
 
   const baseTones = [root, t3, t5];
@@ -639,7 +642,11 @@ function resolveChordTones(st, tuning, extensions, isTritoneSub) {
     if (ext === 'M13' || ext === 'b13') {
       return getDiatonicStep(degree, (degree + 5) % 7, tuning) + edo;
     }
-    return centsToSteps(INTERVAL_CENTS[ext], edo);
+    const cents = INTERVAL_CENTS[ext];
+    if (cents !== undefined) {
+      return centsToSteps(cents, edo);
+    }
+    return 0;
   });
 
   return baseTones.concat(extTones);
@@ -703,7 +710,13 @@ function buildStateList(baseDefs, secondaryTargets, jazzEnabled) {
   }));
   if (jazzEnabled) {
     secondaryTargets.forEach(targetIdx => {
-      states.push({ name: 'V7/' + baseDefs[targetIdx].numeral, secondaryDominantOfIndex: targetIdx, quality: 'dom7', isSecondaryDominant: true });
+      states.push({
+        name: 'V7/' + baseDefs[targetIdx].numeral,
+        secondaryDominantOfIndex: targetIdx,
+        degree: (baseDefs[targetIdx].degree + 4) % 7,
+        quality: 'dom7',
+        isSecondaryDominant: true
+      });
     });
   }
   return states;
@@ -807,7 +820,7 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   let isFirstNote = true;
 
   for (let step = 0; step < total16ths; step++) {
-    const stepIdx = step % 16;
+    const stepIdx = step % 32;
     const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
 
     if (triggerActive) {
@@ -914,7 +927,7 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
     }
 
     const beat = step * 0.25;
-    const stepIdx = step % 16;
+    const stepIdx = step % 32;
     const chordIdx = Math.min(chords.length - 1, Math.floor(beat / beatsPerBar));
     const chord = chords[chordIdx];
 
@@ -983,8 +996,8 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
   for (let f = 0; f < numFrames; f++) {
     const col = new Float32Array(numHarmonics + 1);
     const currentBeat = startBeat + f / framesPerBeat;
-    const step16th = Math.floor(currentBeat * 4) % 16;
-    const rhythmTriggerActive = p.spectralCues && p.spectralCues[step16th];
+    const step32nd = Math.floor(currentBeat * 4) % 32;
+    const rhythmTriggerActive = p.spectralCues && p.spectralCues[step32nd];
 
     for (let k = 1; k <= numHarmonics; k++) {
       if (f > 0) {
@@ -1342,18 +1355,18 @@ Object.entries(TUNING_SYSTEMS).forEach(([edo, label]) => { const o = document.cr
 
 // Master Rhythm Cues
 const drumCues = {
-  b_root:   [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
-  m_anch:   [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
-  passing:  [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
-  arpegg:   [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
-  syncop:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 0,1,0,0],
-  ch_pulse: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0]
+  b_root:   [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+  m_anch:   [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0, 1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+  passing:  [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+  arpegg:   [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
+  syncop:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 0,1,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 0,1,0,0],
+  ch_pulse: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0]
 };
 
-const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
+const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
 
-// 16-step Phrase custom sequencer cues
-const phraseRhythmCues = [1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0];
+// 32-step Phrase custom sequencer cues
+const phraseRhythmCues = [1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0, 1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0];
 
 // Initialize Drum Machine UI
 const drumUI = $('drumMachineUI');
@@ -1364,6 +1377,7 @@ Object.keys(drumCues).forEach(instr => {
   drumCues[instr].forEach((val, stepIdx) => {
     const step = document.createElement('div');
     step.className = 'drum-step' + (val ? ' active' : '');
+    step.title = `Step ${stepIdx + 1}`;
     step.addEventListener('click', () => {
       drumCues[instr][stepIdx] = drumCues[instr][stepIdx] ? 0 : 1;
       step.classList.toggle('active');
@@ -1378,6 +1392,7 @@ const phraseStepsContainer = $('phraseRhythmSteps');
 phraseRhythmCues.forEach((val, stepIdx) => {
   const step = document.createElement('div');
   step.className = 'drum-step' + (val ? ' active' : '');
+  step.title = `Step ${stepIdx + 1}`;
   step.addEventListener('click', () => {
     phraseRhythmCues[stepIdx] = phraseRhythmCues[stepIdx] ? 0 : 1;
     step.classList.toggle('active');
@@ -1390,6 +1405,7 @@ const spectralStepsContainer = $('spectralRhythmSteps');
 spectralCues.forEach((val, stepIdx) => {
   const step = document.createElement('div');
   step.className = 'drum-step' + (val ? ' active' : '');
+  step.title = `Step ${stepIdx + 1}`;
   step.addEventListener('click', () => {
     spectralCues[stepIdx] = spectralCues[stepIdx] ? 0 : 1;
     step.classList.toggle('active');
@@ -1859,9 +1875,15 @@ $('updateFromNoteEditorBtn').addEventListener('click', async () => {
   stopPlayback();
   try {
     const rawJson = $('noteEditorArea').value;
+    if (!rawJson) {
+      throw new Error('Note Editor is empty. Generate a structure first.');
+    }
     const parsed = JSON.parse(rawJson);
     if (!parsed.leadNotes || !parsed.padNotes || !parsed.bassNotes) {
       throw new Error('JSON must contain leadNotes, padNotes, and bassNotes arrays.');
+    }
+    if (!currentChords || !currentTuning) {
+      throw new Error('Please click GENERATE first to initialize the scale and chords structure.');
     }
     surgicallyEditedNotes = parsed;
 
