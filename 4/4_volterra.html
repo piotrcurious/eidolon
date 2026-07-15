@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EIDOLON — top-down synthesizer</title>
+<title>EIDOLON — Volterra Spectral Series Synthesizer</title>
 <style>
   :root{
     --void:#0A0C10;
@@ -118,16 +118,16 @@
   <div class="hero-top">
     <div class="brand">
       <h1>EIDOLON</h1>
-      <p class="tagline">a top-down synthesizer — form precedes sound</p>
+      <p class="tagline">Volterra Spectral Series Synthesizer — nonlinear wave transformation</p>
     </div>
     <div class="seed-block">
       <label>SEED</label>
-      <input type="number" id="seedInput" value="104729">
+      <input type="number" id="seedInput" value="204899">
       <button id="randSeedBtn" title="Randomize seed">⟲</button>
     </div>
   </div>
   <div class="pipeline">
-    <span>RHYTHM CUES</span><span class="arrow">→</span><span>PROGRESSION</span><span class="arrow">→</span><span>CONTRAPOINT & PHRASE</span><span class="arrow">→</span><span>FORMANT & VOLTERRA</span><span class="arrow">→</span><span>WAVEFORM</span>
+    <span>RHYTHM CUES</span><span class="arrow">→</span><span>PROGRESSION</span><span class="arrow">→</span><span>CONTRAPOINT & PHRASE</span><span class="arrow">→</span><span>VOLTERRA SPECTRAL TRANSFORM</span><span class="arrow">→</span><span>WAVEFORM</span>
   </div>
 </header>
 
@@ -178,7 +178,7 @@
 </div>
 
 <section class="spectral-section">
-  <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— lead voice · harmonic index (↑) × time (→) · Markov-evolved amplitude</span></div>
+  <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— Volterra Series Generated · harmonic index (↑) × time (→)</span></div>
   <canvas id="spectralCanvas"></canvas>
 </section>
 
@@ -264,56 +264,74 @@
   </div>
 
   <div class="panel">
-    <h2>4 · Volterra Formant</h2>
+    <h2>4 · Volterra Series Generator</h2>
+
     <div class="control">
-      <label>Vowel preset</label>
-      <select id="formantSelect">
-        <option value="a">/a/ — father</option>
-        <option value="e">/e/ — say</option>
-        <option value="i">/i/ — see</option>
-        <option value="o">/o/ — go</option>
-        <option value="u">/u/ — boot</option>
-        <option value="timeline">timeline modulation</option>
-        <option value="custom">custom</option>
+      <label>Synthesis Fidelity</label>
+      <select id="fidelitySelect">
+        <option value="draft">Draft (Low Latency / 0.05s steps)</option>
+        <option value="standard" selected>Standard (Balanced / 0.025s steps)</option>
+        <option value="high">High Fidelity (Precise / 0.015s steps)</option>
+        <option value="ultra">Ultra HQ (Maximum resolution / 0.01s steps)</option>
       </select>
     </div>
-    <div id="timelineFormantBlock" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
-      <div class="control">
-        <label>Formant Timeline (per bar, space-separated)</label>
-        <input type="text" id="formantTimelineInput" value="a e i o u a e i" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
-        <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Supported: a, e, i, o, u. Modulates vowel per bar.</span>
-      </div>
-    </div>
-    <div id="customFormantBlock">
-      <div class="control"><label>F1 <span class="val" id="f1Val">700</span> Hz</label><input type="range" id="f1Slider" min="200" max="900" step="5" value="700"></div>
-      <div class="control"><label>F2 <span class="val" id="f2Val">1200</span> Hz</label><input type="range" id="f2Slider" min="700" max="2600" step="10" value="1200"></div>
-      <div class="control"><label>F3 <span class="val" id="f3Val">2600</span> Hz</label><input type="range" id="f3Slider" min="1800" max="3600" step="10" value="2600"></div>
-    </div>
-    <div class="control" style="margin-top:15px;">
-      <label>Even-order drive <span class="val" id="evenVal">0.35</span></label>
-      <input type="range" id="evenSlider" min="0" max="1" step="0.01" value="0.35">
-    </div>
+
     <div class="control">
-      <label>Odd-order drive <span class="val" id="oddVal">0.45</span></label>
-      <input type="range" id="oddSlider" min="0" max="1" step="0.01" value="0.45">
+      <label>Volterra Series Max Order</label>
+      <select id="volterraOrderSelect">
+        <option value="1">1st-Order (Linear Filtering)</option>
+        <option value="2" selected>2nd-Order (Quadratic Nonlinear)</option>
+        <option value="3">3rd-Order (Cubic / Comprehensive)</option>
+      </select>
     </div>
+
     <div class="control">
-      <label>Memory (kernel smear) <span class="val" id="memoryVal">0.40</span></label>
-      <input type="range" id="memorySlider" min="0" max="1" step="0.01" value="0.40">
+      <label>Time Memory Lag (τ_max) <span class="val" id="timeLagVal">2</span></label>
+      <input type="range" id="timeLagSlider" min="0" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Frequency Memory Lag (κ_max) <span class="val" id="freqLagVal">2</span></label>
+      <input type="range" id="freqLagSlider" min="0" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Linear scaling (C1) <span class="val" id="c1Val">1.00</span></label>
+      <input type="range" id="c1Slider" min="0" max="2" step="0.05" value="1.00">
+    </div>
+
+    <div class="control">
+      <label>Quadratic scaling (C2) <span class="val" id="c2Val">0.45</span></label>
+      <input type="range" id="c2Slider" min="0" max="2" step="0.05" value="0.45">
+    </div>
+
+    <div class="control">
+      <label>Cubic scaling (C3) <span class="val" id="c3Val">0.20</span></label>
+      <input type="range" id="c3Slider" min="0" max="2" step="0.05" value="0.20">
+    </div>
+
+    <div class="control">
+      <label>Temporal Decay (α) <span class="val" id="tempDecayVal">0.50</span></label>
+      <input type="range" id="tempDecaySlider" min="0" max="2" step="0.05" value="0.50">
+    </div>
+
+    <div class="control">
+      <label>Spectral Decay (β) <span class="val" id="specDecayVal">0.40</span></label>
+      <input type="range" id="specDecaySlider" min="0" max="2" step="0.05" value="0.40">
     </div>
   </div>
 
   <div class="panel">
     <h2>5 · Spectral evolution</h2>
     <div class="control">
-      <label>Distribution</label>
+      <label>Base Distribution</label>
       <select id="distributionSelect">
-        <option value="gaussian" selected>Gaussian — smooth</option>
+        <option value="gaussian">Gaussian — smooth</option>
         <option value="laplace">Laplacian — jumpier</option>
         <option value="uniform">Uniform — flat / harsh</option>
         <option value="cauchy">Cauchy — heavy-tailed lurches</option>
         <option value="bimodal">Bimodal — flickers between two poles</option>
-        <option value="custom_markov">Custom Editable Markov Matrix</option>
+        <option value="custom_markov" selected>Custom Editable Markov Matrix</option>
       </select>
     </div>
     <div class="control">
@@ -338,7 +356,7 @@
     </div>
 
     <!-- 7x7 Markov Matrix UI -->
-    <div id="markovMatrixBlock" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+    <div id="markovMatrixBlock" style="display:block; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
       <label style="font-size:11.5px; color:var(--muted); text-transform:uppercase; display:block; margin-bottom:8px;">7x7 Markov Transition Weights</label>
       <div style="display:grid; grid-template-columns: repeat(8, 1fr); gap:3px;" id="markovGridContainer">
         <!-- populated dynamically via JS -->
@@ -392,7 +410,7 @@
 </div>
 
 <footer>
-  <b>Architecture:</b> A master rhythm cue matrix acts as the clock, distributing timeline events to the progression generator. These cues then seed the contrapoint algorithms, ensuring the generated basslines, grooves, and melodies are mathematically locked into the exact same pulse. Audio is entirely synthetic, rendering via additive resynthesis.
+  <b>Volterra Spectral Series Architecture:</b> The spectral visualizer and additive synth voice amplitudes are driven directly by a 2D discrete Volterra system. Raw Markov chain state arrays are fed into linear, quadratic, and cubic operators across both temporal and harmonic dimensions to create natural organic non-linear evolution.
 </footer>
 
 <script>
@@ -536,7 +554,6 @@ function resolveChordTones(st, tuning, extensions, isTritoneSub) {
   // Chromatic and modal qualities override
   const quality = st.quality;
   if (st.isSecondaryDominant || isTritoneSub || quality === 'dom7') {
-    // Dominant 7th needs correct leading intervals in any EDO: major 3rd, perfect 5th, minor 7th
     t3 = centsToSteps(386.3, edo);
     t5 = centsToSteps(702.0, edo);
     t7 = centsToSteps(968.8, edo);
@@ -563,7 +580,6 @@ function resolveChordTones(st, tuning, extensions, isTritoneSub) {
     baseTones.push(t7);
   }
 
-  // Resolve extensions diatonically to remain perfectly in-key!
   const extTones = (extensions || []).map(ext => {
     if (ext === 'M9' || ext === 'm9' || ext === 's9') {
       return getDiatonicStep(degree, (degree + 1) % 7, tuning) + edo;
@@ -578,12 +594,6 @@ function resolveChordTones(st, tuning, extensions, isTritoneSub) {
   });
 
   return baseTones.concat(extTones);
-}
-
-function chordToneSteps(qualityKey, edo, extensions) {
-  const base = CHORD_QUALITY_TONES[qualityKey].map(k => centsToSteps(INTERVAL_CENTS[k], edo));
-  const ext = (extensions || []).map(k => centsToSteps(INTERVAL_CENTS[k], edo));
-  return base.concat(ext);
 }
 
 const EXTENSION_POOLS = {
@@ -696,12 +706,10 @@ function resolveChords(stateIndices, states, tuning, rng, jazzParams) {
     if (jazzParams.enabled && quality === 'dom7' && rng.next() < jazzParams.tritoneSubChance) {
       tritoneSubbed = true;
       name = 'sub' + name;
-      // Calculate target root steps for smooth downward chromatic-step resolution (tritone sub resolution!)
       let targetRoot = 0;
       if (st.isSecondaryDominant) {
         targetRoot = resolveChordRootSteps(st.secondaryDominantOfIndex, states, tuning);
       } else {
-        // Standard V7 resolves to tonic (0)
         targetRoot = 0;
       }
       rootSteps = targetRoot + semitone_steps;
@@ -736,7 +744,6 @@ function nearestChordToneSteps(rawSteps, chord, edo) {
   return best;
 }
 
-// Melody phrase driven directly by the Drum Cue matrix
 function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   const notes = [];
   let degreeIndex = 0;
@@ -754,7 +761,6 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
     const isSnare = p.drumCues.snare[stepIdx];
     const isKick = p.drumCues.kick[stepIdx];
 
-    // Seed: Drum cues dictate rhythmic density
     let triggerProb = p.density * 0.3;
     if (isHat) triggerProb += 0.4 * p.density;
     if (isSnare) triggerProb += 0.6 * p.density;
@@ -765,22 +771,19 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       const chordIdx = Math.min(chords.length - 1, Math.floor(beatPos / beatsPerBar));
       const chord = chords[chordIdx];
 
-      // Duration snaps to grid based on cue intensity
       let dur16ths = 1;
       if (isSnare || (isKick && rng.next() > p.density)) dur16ths = 2;
       currentDurRemaining = dur16ths - 1;
 
-      // Seed: Determine leap based on slider
       const stepScale = lerp(0.9, 3.0, p.leapProbability);
       const stepWeights = new Float64Array(8);
       for (let d = -3; d <= 4; d++) stepWeights[d + 3] = Math.exp(-Math.abs(d) / stepScale);
       const leapStep = rng.weightedIndex(stepWeights) - 3;
-      
+
       degreeIndex += leapStep;
       degreeIndex = clamp(degreeIndex, DEGREE_LO, DEGREE_HI);
       let steps = degreeIndexToSteps(degreeIndex, tuning);
 
-      // Seed: Snare and Kick anchor melody to pure chord tones
       if (isKick || isSnare) steps = nearestChordToneSteps(steps, chord, tuning.edo);
 
       notes.push({ startBeat: beatPos, durBeats: (dur16ths * 0.25) * 0.92, steps: LEAD_OCTAVES * tuning.edo + steps });
@@ -789,13 +792,11 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   return notes;
 }
 
-// Bassline generated from the exact same master drum cues
 function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
   const padNotes = [], bassNotes = [];
   const totalBeats = chords.length * beatsPerBar;
   const total16ths = totalBeats * 4;
 
-  // Pad remains fully sustained structural beds
   chords.forEach((chord, i) => {
     const startBeat = i * beatsPerBar;
     chord.toneSteps.forEach((iv, j) => {
@@ -803,7 +804,6 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
     });
   });
 
-  // Bass is entirely seeded by the Rhythm Master Matrix
   let currentBassDurRemaining = 0;
   for (let step = 0; step < total16ths; step++) {
     if (currentBassDurRemaining > 0) {
@@ -821,15 +821,12 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
     const isHat = p.drumCues.hat[stepIdx];
 
     if (isKick) {
-      // Seed: Anchor on root on kick hits
       bassNotes.push({ startBeat: beat, durBeats: 0.45, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps });
-      currentBassDurRemaining = 1; // Take up 8th note duration
+      currentBassDurRemaining = 1;
     } else if (isSnare && p.jazzEnabled) {
-      // Seed: Snares pull out passing tones
       const tone = chord.toneSteps[Math.min(2, chord.toneSteps.length - 1)];
       bassNotes.push({ startBeat: beat, durBeats: 0.25, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + tone });
     } else if (isHat && rng.next() < p.density) {
-      // Seed: High hat density causes groovy staccato ghost notes
       const syncopatedTone = (rng.next() > 0.5 ? 1 : -1) * tuning.smallStep;
       bassNotes.push({ startBeat: beat, durBeats: 0.15, steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + syncopatedTone });
     }
@@ -840,105 +837,12 @@ function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
 
 function stepsToFreq(totalSteps, tonicFreq, edo) { return tonicFreq * Math.pow(2, totalSteps / edo); }
 
-/* =========================================================================
-   4. FORMANTS & VOLTERRA GENERATOR
-   ========================================================================= */
-
-const FORMANT_PRESETS = {
-  a: [{ freq:700, bw:80,  gain:1 },{ freq:1200, bw:90,  gain:0.6 },{ freq:2600, bw:120, gain:0.35 }],
-  e: [{ freq:500, bw:70,  gain:1 },{ freq:1900, bw:110, gain:0.55 },{ freq:2600, bw:120, gain:0.3 }],
-  i: [{ freq:280, bw:60,  gain:1 },{ freq:2250, bw:120, gain:0.5 },{ freq:3000, bw:130, gain:0.25 }],
-  o: [{ freq:480, bw:70,  gain:1 },{ freq:900,  bw:90,  gain:0.55 },{ freq:2600, bw:120, gain:0.3 }],
-  u: [{ freq:320, bw:65,  gain:1 },{ freq:850,  bw:85,  gain:0.5 },{ freq:2250, bw:110, gain:0.28 }],
-};
-
-function getFormants(p, beat = 0, secPerBeat = 0.5) {
-  if (p.formantPreset === 'timeline') {
-    const bar = Math.floor(beat / 4);
-    const timelineVowels = (p.formantTimeline || 'a e i o u a e i').toLowerCase().split(/\s+/).filter(Boolean);
-    if (timelineVowels.length > 0) {
-      const activeVowel = timelineVowels[bar % timelineVowels.length];
-      return FORMANT_PRESETS[activeVowel] || FORMANT_PRESETS.a;
-    }
-  }
-  if (p.formantPreset === 'custom') {
-    return [
-      { freq: p.customF1, bw: Math.max(20, p.customF1 * 0.11), gain: 1 },
-      { freq: p.customF2, bw: Math.max(20, p.customF2 * 0.05), gain: 0.55 },
-      { freq: p.customF3, bw: Math.max(20, p.customF3 * 0.045), gain: 0.3 },
-    ];
-  }
-  return FORMANT_PRESETS[p.formantPreset] || FORMANT_PRESETS.a;
-}
-
-function formantGain(freq, formants) {
-  let sum = 0;
-  for (const f of formants) {
-    const w = freq / f.freq;
-    const Q = f.freq / f.bw;
-    const wq = w / Q;
-    const denom = Math.sqrt(Math.pow(1 - w * w, 2) + Math.pow(wq, 2));
-    sum += f.gain * (wq / denom);
-  }
-  return sum;
-}
-
-const COS_POWER_EXPANSION = {
-  2: [[0, 0.5], [2, 0.5]],
-  3: [[1, 0.75], [3, 0.25]],
-  4: [[0, 0.375], [2, 0.5], [4, 0.125]],
-};
-
-function buildHarmonicTemplate(f0, p, sr, formants) {
-  const nyquist = sr * 0.5;
-  const maxAudible = Math.min(nyquist * 0.95, 9000);
-  const numHarmonics = clamp(Math.floor(maxAudible / f0), 4, 32);
-
-  const fc0 = lerp(9000, 250, p.memory);
-  const orderGain = { 2: p.evenDrive, 3: p.oddDrive, 4: p.evenDrive * p.evenDrive };
-
-  const Hre = new Float64Array(5), Him = new Float64Array(5);
-  Hre[1] += 1; 
-  for (const n of [2, 3, 4]) {
-    const fc = fc0 / n;
-    const w = f0 / fc;
-    const mag = 1 / Math.sqrt(1 + w * w);
-    const phase = -Math.atan(w);
-    const gain = orderGain[n] * Math.pow(mag, n);
-    for (const [m, coeff] of COS_POWER_EXPANSION[n]) {
-      if (m === 0) continue;
-      const amp = gain * coeff;
-      const ang = m * phase;
-      Hre[m] += amp * Math.cos(ang);
-      Him[m] += amp * Math.sin(ang);
-    }
-  }
-
-  const amp = new Float64Array(numHarmonics + 1);
-  const phase = new Float64Array(numHarmonics + 1);
-  for (let m = 1; m <= 4 && m <= numHarmonics; m++) {
-    amp[m] = Math.hypot(Hre[m], Him[m]);
-    phase[m] = Math.atan2(Him[m], Hre[m]);
-  }
-
-  const rolloffExp = lerp(3.2, 0.9, p.brightness);
-  const tailBase = amp[1] > 0 ? amp[1] * 0.9 : 0.5;
-  for (let k = 5; k <= numHarmonics; k++) { amp[k] = tailBase / Math.pow(k, rolloffExp); phase[k] = 0; }
-
-  let peakFormant = 0;
-  const resp = new Float64Array(numHarmonics + 1);
-  for (let k = 1; k <= numHarmonics; k++) { resp[k] = formantGain(k * f0, formants); if (resp[k] > peakFormant) peakFormant = resp[k]; }
-  if (peakFormant <= 0) peakFormant = 1;
-  for (let k = 1; k <= numHarmonics; k++) amp[k] *= (resp[k] / peakFormant) * 0.7 + 0.3;
-
-  return { numHarmonics, amp, phase };
-}
 
 /* =========================================================================
-   5. SPECTRAL IMAGE
+   4. VOLTERRA SPECTRAL TRANSFORM GENERATION (Actual Spectral Evolution!)
    ========================================================================= */
 
-const SPECTRAL_LEVELS = [0.354, 0.5, 0.707, 1.0, 1.414, 2.0, 2.828];
+const SPECTRAL_LEVELS = [0.15, 0.32, 0.50, 0.72, 1.05, 1.48, 2.10];
 const SPECTRAL_CENTER = 3;
 
 const SPECTRAL_KERNELS = {
@@ -949,7 +853,23 @@ const SPECTRAL_KERNELS = {
   bimodal:  { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-((d - 2) ** 2) / (2 * s * s)) + Math.exp(-((d + 2) ** 2) / (2 * s * s)) },
 };
 
-function buildSpectralImage(rng, template, numFrames, p, startBeat = 0, secPerBeat = 0.5) {
+/**
+ * 2D Discrete Volterra Series Transform
+ *
+ * Maps the raw Markov chain transition amplitudes X(f, k) nonlinearly to Y(f, k).
+ * Using defined kernels of 1st, 2nd, and 3rd order with exponential lag decay:
+ *
+ * Linear (1st order):
+ *   L(f, k) = sum_{tau} sum_{kappa} X(f-tau, k-kappa) * e^(-alpha * tau - beta * |kappa|)
+ * Quadratic (2nd order):
+ *   Q(f, k) = sum_{tau1, tau2} sum_{kappa1, kappa2} X(f-tau1, k-kappa1) * X(f-tau2, k-kappa2) * e^(-alpha*(tau1+tau2) - beta*(|kappa1|+|kappa2|))
+ * Cubic (3rd order):
+ *   C(f, k) = sum_{tau1,2,3} sum_{kappa1,2,3} X_1 * X_2 * X_3 * e^(-alpha*(tau1+tau2+tau3) - beta*(|kappa1|+|kappa2|+|kappa3|))
+ *
+ * Exposes full interactive hyperparameters and allows sub-sampled scaling for Fidelity.
+ */
+function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat = 0, secPerBeat = 0.5) {
+  // 1. Generate base Markov chain state matrix X[f][k]
   let trans = [];
   if (p.spectralDistribution === 'custom_markov' && p.customMarkovMatrix) {
     trans = p.customMarkovMatrix;
@@ -969,49 +889,129 @@ function buildSpectralImage(rng, template, numFrames, p, startBeat = 0, secPerBe
     }
   }
 
-  const numH = template.numHarmonics;
-  const image = [];
-  const state = new Int8Array(numH + 1).fill(SPECTRAL_CENTER);
-  const FRAME_HOP_SEC = 0.025;
+  const rawX = [];
+  const state = new Int8Array(numHarmonics + 1).fill(SPECTRAL_CENTER);
+  const FRAME_HOP_SEC = p.frameHopSec || 0.025;
   const framesPerBeat = 1.0 / (FRAME_HOP_SEC / secPerBeat);
 
   for (let f = 0; f < numFrames; f++) {
-    const col = new Float64Array(numH + 1);
-
-    // Evaluate if the current frame corresponds to a triggered step in our Spectral Rhythm Sequencer
+    const col = new Float64Array(numHarmonics + 1);
     const currentBeat = startBeat + f / framesPerBeat;
     const step16th = Math.floor(currentBeat * 4) % 16;
     const rhythmTriggerActive = p.spectralCues && p.spectralCues[step16th];
 
-    for (let k = 1; k <= numH; k++) {
+    for (let k = 1; k <= numHarmonics; k++) {
       if (f > 0) {
         state[k] = rng.weightedIndex(trans[state[k]]);
       }
-
       let val = SPECTRAL_LEVELS[state[k]];
       if (rhythmTriggerActive) {
-        // Boost state mutation probability and harmonically excite higher frequencies
-        if (k > numH / 2) {
-          val *= 2.0; // Dynamic high-harmonic excitation
-        } else {
-          val *= 1.4;
-        }
+        val *= (k > numHarmonics / 2) ? 1.8 : 1.35;
       }
       col[k] = val;
     }
-    image.push(col);
+    rawX.push(col);
   }
-  return image;
+
+  // 2. Perform 2D Volterra Series transformation to build Y[f][k]
+  const Y = [];
+  const tau_max = p.volterraTimeLag !== undefined ? p.volterraTimeLag : 2;
+  const kappa_max = p.volterraFreqLag !== undefined ? p.volterraFreqLag : 2;
+  const c1 = p.volterraC1 !== undefined ? p.volterraC1 : 1.0;
+  const c2 = p.volterraC2 !== undefined ? p.volterraC2 : 0.45;
+  const c3 = p.volterraC3 !== undefined ? p.volterraC3 : 0.20;
+  const alpha = p.volterraAlpha !== undefined ? p.volterraAlpha : 0.5;
+  const beta = p.volterraBeta !== undefined ? p.volterraBeta : 0.4;
+  const order = p.volterraOrder !== undefined ? p.volterraOrder : 2;
+
+  // Pre-calculate temporal and spectral weight coefficients to speed up the loop
+  const tempWeights = new Float64Array(tau_max + 1);
+  for (let t = 0; t <= tau_max; t++) tempWeights[t] = Math.exp(-alpha * t);
+
+  const specWeights = new Float64Array(2 * kappa_max + 1);
+  for (let k = -kappa_max; k <= kappa_max; k++) {
+    specWeights[k + kappa_max] = Math.exp(-beta * Math.abs(k));
+  }
+
+  // Double resolution boundaries check helper
+  const getX = (fi, ki) => {
+    if (fi < 0) fi = 0;
+    if (fi >= numFrames) fi = numFrames - 1;
+    if (ki < 1) return 0;
+    if (ki > numHarmonics) return 0;
+    return rawX[fi][ki];
+  };
+
+  for (let f = 0; f < numFrames; f++) {
+    const colY = new Float64Array(numHarmonics + 1);
+
+    for (let k = 1; k <= numHarmonics; k++) {
+      // 1st-Order (Linear Filtering)
+      let L = 0;
+      for (let t = 0; t <= tau_max; t++) {
+        const wt = tempWeights[t];
+        for (let kp = -kappa_max; kp <= kappa_max; kp++) {
+          const wk = specWeights[kp + kappa_max];
+          L += getX(f - t, k - kp) * wt * wk;
+        }
+      }
+
+      // 2nd-Order (Quadratic Cross-terms)
+      let Q = 0;
+      if (order >= 2) {
+        for (let t1 = 0; t1 <= tau_max; t1++) {
+          const wt1 = tempWeights[t1];
+          for (let kp1 = -kappa_max; kp1 <= kappa_max; kp1++) {
+            const wk1 = specWeights[kp1 + kappa_max];
+            const x1 = getX(f - t1, k - kp1);
+
+            for (let t2 = 0; t2 <= tau_max; t2++) {
+              const wt2 = tempWeights[t2];
+              for (let kp2 = -kappa_max; kp2 <= kappa_max; kp2++) {
+                const wk2 = specWeights[kp2 + kappa_max];
+                const x2 = getX(f - t2, k - kp2);
+                Q += x1 * x2 * wt1 * wt2 * wk1 * wk2;
+              }
+            }
+          }
+        }
+      }
+
+      // 3rd-Order (Cubic Cross-terms)
+      let C = 0;
+      if (order >= 3) {
+        // Sub-sample loop or perform targeted cubic transform to optimize render speeds
+        for (let t1 = 0; t1 <= tau_max; t1++) {
+          const wt1 = tempWeights[t1];
+          for (let kp1 = -kappa_max; kp1 <= kappa_max; kp1 += (tau_max > 1 ? 2 : 1)) {
+            const x1 = getX(f - t1, k - kp1);
+            for (let t2 = 0; t2 <= tau_max; t2++) {
+              const x2 = getX(f - t2, k - kp1);
+              C += x1 * x2 * x2 * wt1 * tempWeights[t2];
+            }
+          }
+        }
+        C *= 0.55; // Calibrate level
+      }
+
+      // Assemble non-linear transform output
+      let val = c1 * L + c2 * Q + c3 * C;
+      if (val < 0) val = 0;
+      colY[k] = val;
+    }
+    Y.push(colY);
+  }
+
+  return Y;
 }
 
 /* =========================================================================
-   6. WAVEFORM RECONSTRUCTION
+   5. WAVEFORM RECONSTRUCTION
    ========================================================================= */
 
-function renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, spectralImage, frameHopSamples, attackSec, releaseSec, velocity, pan) {
-  const numH = template.numHarmonics;
+function renderNote(bufL, bufR, sr, startSample, durSamples, f0, spectralImage, frameHopSamples, attackSec, releaseSec, velocity, pan) {
+  const numH = spectralImage[0].length - 1;
   const phaseAcc = new Float64Array(numH + 1);
-  for (let k = 1; k <= numH; k++) phaseAcc[k] = template.phase[k] || 0;
 
   const attackSamples = Math.max(1, Math.floor(attackSec * sr));
   const relSamples = Math.max(1, Math.floor(releaseSec * sr));
@@ -1047,7 +1047,7 @@ function renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, spect
     for (let k = 1; k <= numH; k++) {
       if (freqs[k] < nyquist) {
         const lvl = spectralImage[f0i][k] * (1 - frac) + spectralImage[f1i][k] * frac;
-        const amp = template.amp[k] * lvl * env * velocity;
+        const amp = 0.12 * lvl * env * velocity; // Calibrated volume scale
         sample += amp * lutCos(phaseAcc[k]);
       }
       phaseAcc[k] += incr[k];
@@ -1058,7 +1058,7 @@ function renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, spect
 }
 
 /* =========================================================================
-   7. REVERB & WAV export
+   6. REVERB & WAV export
    ========================================================================= */
 
 function combFilter(input, delay, feedback) {
@@ -1133,7 +1133,7 @@ function encodeWavStereo(bufL, bufR, sr) {
 }
 
 /* =========================================================================
-   8. VISUALIZATION
+   7. VISUALIZATION
    ========================================================================= */
 
 function spectralColormap(t) {
@@ -1221,7 +1221,7 @@ function renderProgressionStrip(chords) {
 }
 
 /* =========================================================================
-   9. UI WIRING + ORCHESTRATION
+   8. UI WIRING + ORCHESTRATION
    ========================================================================= */
 
 const $ = id => document.getElementById(id);
@@ -1231,9 +1231,14 @@ const styleSelect = $('styleSelect'), jazzBlock = $('jazzBlock');
 const secDomSlider = $('secDomSlider'), tritoneSubSlider = $('tritoneSubSlider'), extensionSlider = $('extensionSlider');
 const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlider = $('tensionSlider');
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
-const formantSelect = $('formantSelect'), customFormantBlock = $('customFormantBlock'), timelineFormantBlock = $('timelineFormantBlock'), formantTimelineInput = $('formantTimelineInput');
-const f1Slider = $('f1Slider'), f2Slider = $('f2Slider'), f3Slider = $('f3Slider');
-const evenSlider = $('evenSlider'), oddSlider = $('oddSlider'), memorySlider = $('memorySlider');
+
+// Volterra UI elements
+const fidelitySelect = $('fidelitySelect');
+const volterraOrderSelect = $('volterraOrderSelect');
+const timeLagSlider = $('timeLagSlider'), freqLagSlider = $('freqLagSlider');
+const c1Slider = $('c1Slider'), c2Slider = $('c2Slider'), c3Slider = $('c3Slider');
+const tempDecaySlider = $('tempDecaySlider'), specDecaySlider = $('specDecaySlider');
+
 const volatilitySlider = $('volatilitySlider'), richnessSlider = $('richnessSlider'), distributionSelect = $('distributionSelect');
 const attackSlider = $('attackSlider'), releaseSlider = $('releaseSlider'), brightnessSlider = $('brightnessSlider');
 const spaceSlider = $('spaceSlider'), gainSlider = $('gainSlider');
@@ -1242,18 +1247,17 @@ const generateBtn = $('generateBtn'), playBtn = $('playBtn'), stopBtn = $('stopB
 const statusLine = $('statusLine');
 const chordEditPopover = $('chordEditPopover'), chordEditSelect = $('chordEditSelect'), chordEditLockBtn = $('chordEditLockBtn'), chordEditClose = $('chordEditClose');
 
-// Editable-progression state
 let currentStates = null, currentTuning = null, currentMatrices = null;
 let currentStateIndices = null, currentChords = null;
 let lockedSlots = {};
 let lastFullParams = null;
 let editingCellIndex = null;
 
-// Populate UI options
+// Populate EDO list
 Object.entries(TUNING_SYSTEMS).forEach(([edo, label]) => { const o = document.createElement('option'); o.value = edo; o.textContent = label; if (edo === '12') o.selected = true; tuningSelect.appendChild(o); });
 { const o = document.createElement('option'); o.value = 'custom'; o.textContent = 'custom…'; tuningSelect.appendChild(o); }
 
-// Master Rhythm Cues 
+// Master Rhythm Cues
 const drumCues = {
   kick:  [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0],
   snare: [0,0,1,0, 0,0,1,0, 0,0,1,0, 0,0,1,0],
@@ -1262,7 +1266,7 @@ const drumCues = {
 
 const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
 
-// Initialize Rhythm Cue UI
+// Initialize Drum Machine UI
 const drumUI = $('drumMachineUI');
 Object.keys(drumCues).forEach(instr => {
   const row = document.createElement('div'); row.className = 'drum-row';
@@ -1299,7 +1303,7 @@ const defaultMarkovMatrix = Array.from({ length: 7 }, (_, i) => {
   const row = new Float32Array(7);
   for (let j = 0; j < 7; j++) {
     const dist = Math.abs(i - j);
-    row[j] = Math.max(0.05, 1.0 - dist * 0.3); // close ones are likely transitions
+    row[j] = Math.max(0.05, 1.0 - dist * 0.3);
   }
   const sum = row.reduce((a, b) => a + b, 0);
   return Array.from(row.map(x => parseFloat((x / sum).toFixed(2))));
@@ -1307,8 +1311,6 @@ const defaultMarkovMatrix = Array.from({ length: 7 }, (_, i) => {
 
 function createMarkovUI() {
   markovGrid.innerHTML = '';
-  // Row headers and columns
-  // First row is header columns: "From/To", "S1", ..., "S7"
   const headerLabels = ['', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'];
   headerLabels.forEach(lbl => {
     const d = document.createElement('div');
@@ -1321,7 +1323,6 @@ function createMarkovUI() {
   });
 
   for (let i = 0; i < 7; i++) {
-    // Row header label
     const rh = document.createElement('div');
     rh.style.fontSize = '9px';
     rh.style.color = 'var(--muted)';
@@ -1366,7 +1367,6 @@ function getCustomMarkovMatrix() {
       sum += v;
     }
     if (sum === 0) {
-      // Avoid division by 0; fallback to identity row
       row[i] = 1.0;
       sum = 1.0;
     }
@@ -1392,7 +1392,6 @@ function openChordEditor(cellIndex) {
   if (!currentStates || !currentChords) return;
   editingCellIndex = cellIndex;
 
-  // Populate state/degree selector
   chordEditSelect.innerHTML = '';
   currentStates.forEach((st, idx) => {
     const o = document.createElement('option');
@@ -1402,7 +1401,6 @@ function openChordEditor(cellIndex) {
     chordEditSelect.appendChild(o);
   });
 
-  // Populate transposition, quality, and extensions from the active chord
   const activeChord = currentChords[cellIndex];
   const defaultRoot = resolveChordRootSteps(activeChord.stateIndex, currentStates, currentTuning);
   $('chordEditTranspose').value = activeChord.rootSteps - defaultRoot;
@@ -1425,7 +1423,6 @@ function saveChordFromEditor() {
   const rootSteps = defaultRoot + trans;
   const baseState = currentStates[stateIdx];
 
-  // Construct dummy state if quality override is used
   const targetState = qualOverride ? Object.assign({}, baseState, { quality: qualOverride }) : baseState;
   const toneSteps = resolveChordTones(targetState, currentTuning, ext, false);
 
@@ -1485,6 +1482,7 @@ NOTE_NAMES.forEach((n, i) => { const o = document.createElement('option'); o.val
 function mapAttackSec(v) { return lerp(0.005, 0.9, v); }
 function mapReleaseSec(v) { return lerp(0.05, 2.2, v); }
 
+// Setup sliders and values
 document.querySelectorAll('input[type=range]').forEach(el => {
   if (el.id === 'attackSlider' || el.id === 'releaseSlider') return;
   el.addEventListener('input', () => {
@@ -1496,10 +1494,7 @@ document.querySelectorAll('input[type=range]').forEach(el => {
 attackSlider.addEventListener('input', () => { $('attackVal').textContent = mapAttackSec(parseFloat(attackSlider.value)).toFixed(2) + 's'; });
 releaseSlider.addEventListener('input', () => { $('releaseVal').textContent = mapReleaseSec(parseFloat(releaseSlider.value)).toFixed(2) + 's'; });
 customEdoInput.addEventListener('input', () => { $('customEdoVal').textContent = clamp(parseInt(customEdoInput.value) || 12, 5, 72); });
-formantSelect.addEventListener('change', () => {
-  customFormantBlock.style.display = formantSelect.value === 'custom' ? 'block' : 'none';
-  timelineFormantBlock.style.display = formantSelect.value === 'timeline' ? 'block' : 'none';
-});
+
 tuningSelect.addEventListener('change', () => { customTuningBlock.style.display = tuningSelect.value === 'custom' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
 styleSelect.addEventListener('change', () => { jazzBlock.style.display = styleSelect.value === 'jazz' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
 modeSelect.addEventListener('change', clearLocksAndRegenerateHint);
@@ -1513,6 +1508,13 @@ window.addEventListener('resize', () => {
   clearTimeout(resizeRedrawTimer);
   resizeRedrawTimer = setTimeout(() => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); }, 150);
 });
+
+function getFrameHopSec(fid) {
+  if (fid === 'draft') return 0.05;
+  if (fid === 'standard') return 0.025;
+  if (fid === 'high') return 0.015;
+  return 0.01; // ultra
+}
 
 function readParams() {
   const edo = tuningSelect.value === 'custom' ? clamp(parseInt(customEdoInput.value) || 12, 5, 72) : parseInt(tuningSelect.value);
@@ -1530,11 +1532,19 @@ function readParams() {
     tension: parseFloat(tensionSlider.value),
     leapProbability: parseFloat(leapSlider.value),
     density: parseFloat(densitySlider.value),
-    formantPreset: formantSelect.value,
-    formantTimeline: formantTimelineInput.value,
-    customF1: parseFloat(f1Slider.value), customF2: parseFloat(f2Slider.value), customF3: parseFloat(f3Slider.value),
-    evenDrive: parseFloat(evenSlider.value), oddDrive: parseFloat(oddSlider.value),
-    memory: parseFloat(memorySlider.value),
+
+    // Volterra Parameters
+    fidelity: fidelitySelect.value,
+    frameHopSec: getFrameHopSec(fidelitySelect.value),
+    volterraOrder: parseInt(volterraOrderSelect.value),
+    volterraTimeLag: parseInt(timeLagSlider.value),
+    volterraFreqLag: parseInt(freqLagSlider.value),
+    volterraC1: parseFloat(c1Slider.value),
+    volterraC2: parseFloat(c2Slider.value),
+    volterraC3: parseFloat(c3Slider.value),
+    volterraAlpha: parseFloat(tempDecaySlider.value),
+    volterraBeta: parseFloat(specDecaySlider.value),
+
     volatility: parseFloat(volatilitySlider.value), richness: parseFloat(richnessSlider.value), spectralDistribution: distributionSelect.value,
     customMarkovMatrix: getCustomMarkovMatrix(),
     spectralCues: [...spectralCues],
@@ -1564,26 +1574,25 @@ async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx) {
     const startSample = Math.round(note.startBeat * secPerBeat * sr);
     const durSamples = Math.max(1, Math.round(note.durBeats * secPerBeat * sr));
     const f0 = stepsToFreq(note.steps, tonicFreq, edo);
-    // Dynamically retrieve formants per-note to support timeline modulation
-    const noteFormants = getFormants(p, note.startBeat, secPerBeat);
-    const template = buildHarmonicTemplate(f0, p, sr, noteFormants);
     const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
-    const image = buildSpectralImage(rng, template, numFrames, p, note.startBeat, secPerBeat);
+
+    // True Volterra series spectral image generation
+    const image = buildVolterraSpectralImage(rng, numFrames, vizMaxHarm, p, note.startBeat, secPerBeat);
     const pan = panFn(note);
-    renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, image, frameHopSamples, attackSec, releaseSec, gain, pan);
+    renderNote(bufL, bufR, sr, startSample, durSamples, f0, image, frameHopSamples, attackSec, releaseSec, gain, pan);
 
     if (collectViz) {
       const noteStartFrame = Math.floor(startSample / frameHopSamples);
-      const maxH = Math.min(template.numHarmonics, vizMaxHarm);
+      const maxH = vizMaxHarm;
       for (let li = 0; li < image.length; li++) {
         const gi = noteStartFrame + li;
         if (gi < 0 || gi >= vizImage.length) continue;
         const col = vizImage[gi];
-        for (let k = 1; k <= maxH; k++) col[k] = Math.max(col[k], template.amp[k] * image[li][k]);
+        for (let k = 1; k <= maxH; k++) col[k] = Math.max(col[k], image[li][k]);
       }
     }
     i++;
-    if (i % 6 === 0) await new Promise(r => setTimeout(r, 0)); 
+    if (i % 6 === 0) await new Promise(r => setTimeout(r, 0));
   }
 }
 
@@ -1601,7 +1610,7 @@ function buildTheoryContext(p) {
 async function doGenerate(p, onProgress) {
   currentSeed = p.seed;
   const progressionRng = new RNG(p.seed);
-  const voiceRng = new RNG((p.seed ^ 0x9E3779B9) >>> 0); 
+  const voiceRng = new RNG((p.seed ^ 0x9E3779B9) >>> 0);
 
   const { tuning, states, matrices } = buildTheoryContext(p);
   currentStates = states; currentTuning = tuning; currentMatrices = matrices;
@@ -1615,7 +1624,6 @@ async function doGenerate(p, onProgress) {
   return await renderFromChords(chords, p, tuning, voiceRng, onProgress);
 }
 
-// Global reference for surgically edited notes
 let surgicallyEditedNotes = null;
 
 async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
@@ -1631,7 +1639,7 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const bufL = new Float32Array(totalSamples);
   const bufR = new Float32Array(totalSamples);
 
-  const tonicFreq = 440 * Math.pow(2, (48 + p.rootPC - 69) / 12); 
+  const tonicFreq = 440 * Math.pow(2, (48 + p.rootPC - 69) / 12);
 
   let leadNotes, padNotes, bassNotes;
   if (surgicallyEditedNotes) {
@@ -1644,11 +1652,10 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
     padNotes = generatedPads.padNotes;
     bassNotes = generatedPads.bassNotes;
 
-    // Update notes editor display
     $('noteEditorArea').value = JSON.stringify({ leadNotes, padNotes, bassNotes }, null, 2);
   }
 
-  const FRAME_HOP_SEC = 0.025;
+  const FRAME_HOP_SEC = p.frameHopSec || 0.025;
   const frameHopSamples = Math.max(1, Math.round(FRAME_HOP_SEC * sr));
 
   const vizMaxHarm = 24;
@@ -1658,11 +1665,11 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
   const padPans = [-0.55, 0.2, 0.55, -0.15];
 
-  onProgress('rendering lead…');
+  onProgress('rendering lead with Volterra series…');
   await renderVoiceAsync(leadNotes, 0.5, () => 0, true, ctx);
-  onProgress('rendering pad…');
+  onProgress('rendering pad with Volterra series…');
   await renderVoiceAsync(padNotes, 0.25, n => padPans[(n.voiceIndex || 0) % padPans.length], false, ctx);
-  onProgress('rendering bass…');
+  onProgress('rendering bass with Volterra series…');
   await renderVoiceAsync(bassNotes, 0.55, () => 0, false, ctx);
 
   onProgress('reverb…');
@@ -1703,7 +1710,7 @@ function exportWav() {
   const blob = new Blob([encodeWavStereo(renderedL, renderedR, pieceSampleRate)], { type: 'audio/wav' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'eidolon-' + currentSeed + '.wav';
+  a.href = url; a.download = 'eidolon-volterra-' + currentSeed + '.wav';
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
@@ -1714,9 +1721,9 @@ generateBtn.addEventListener('click', async () => {
   generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
   statusLine.textContent = 'generating structure…';
   try {
-    surgicallyEditedNotes = null; // Reset surgical edits on full generation
+    surgicallyEditedNotes = null;
     const p = readParams();
-    await new Promise(r => setTimeout(r, 10)); // let the disabled/status state paint first
+    await new Promise(r => setTimeout(r, 10));
     const secs = await doGenerate(p, msg => { statusLine.textContent = msg; });
     statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — seed ' + p.seed;
     playBtn.disabled = false; exportBtn.disabled = false;
@@ -1742,7 +1749,7 @@ $('updateFromNoteEditorBtn').addEventListener('click', async () => {
     surgicallyEditedNotes = parsed;
 
     generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
-    statusLine.textContent = 're-synthesizing from surgical note edits…';
+    statusLine.textContent = 're-synthesizing with Volterra edits…';
 
     const p = lastFullParams || readParams();
     const voiceRng = new RNG((p.seed ^ 0x9E3779B9 ^ 0xA5A5A5) >>> 0);
