@@ -1189,6 +1189,7 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
     const colY = new Float32Array(numHarmonics + 1);
 
     for (let k = 1; k <= numHarmonics; k++) {
+      // 1. Linear Term (convolution with memory and local frequency coupling)
       let L = 0;
       for (let t = 0; t <= tau_max; t++) {
         const wt = tempWeights[t];
@@ -1198,44 +1199,41 @@ function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat =
         }
       }
 
+      // 2. Quadratic Term with sum-and-difference Intermodulation frequency coupling:
       let Q = 0;
       if (order >= 2) {
-        for (let t1 = 0; t1 <= tau_max; t1++) {
-          const wt1 = tempWeights[t1];
-          for (let kp1 = -kappa_max; kp1 <= kappa_max; kp1++) {
-            const wk1 = specWeights[kp1 + kappa_max];
-            const x1 = getX(f - t1, k - kp1);
-
-            for (let t2 = 0; t2 <= tau_max; t2++) {
-              const wt2 = tempWeights[t2];
-              for (let kp2 = -kappa_max; kp2 <= kappa_max; kp2++) {
-                const wk2 = specWeights[kp2 + kappa_max];
-                const x2 = getX(f - t2, k - kp2);
-                Q += x1 * x2 * wt1 * wt2 * wk1 * wk2;
-              }
-            }
+        // Sum-frequency generation: k1 + k2 = k
+        for (let k1 = 1; k1 < k; k1++) {
+          const k2 = k - k1;
+          for (let t1 = 0; t1 <= Math.min(1, tau_max); t1++) {
+            const wt1 = tempWeights[t1];
+            const x1 = getX(f - t1, k1);
+            const x2 = getX(f - t1, k2);
+            Q += x1 * x2 * wt1;
+          }
+        }
+        // Difference-frequency generation: |k1 - k2| = k
+        for (let k1 = k + 1; k1 <= Math.min(numHarmonics, k + 6); k1++) {
+          const k2 = k1 - k;
+          for (let t1 = 0; t1 <= Math.min(1, tau_max); t1++) {
+            const wt1 = tempWeights[t1];
+            const x1 = getX(f - t1, k1);
+            const x2 = getX(f - t1, k2);
+            Q += x1 * x2 * wt1;
           }
         }
       }
 
+      // 3. Cubic Term with cross-phase modulation (XPM):
       let C = 0;
       if (order >= 3) {
-        for (let t1 = 0; t1 <= tau_max; t1++) {
-          const wt1 = tempWeights[t1];
-          for (let kp1 = -kappa_max; kp1 <= kappa_max; kp1 += (tau_max > 1 ? 2 : 1)) {
-            const x1 = getX(f - t1, k - kp1);
-            for (let t2 = 0; t2 <= tau_max; t2++) {
-              const x2 = getX(f - t2, k - kp1);
-              C += x1 * x2 * x2 * wt1 * tempWeights[t2];
-            }
-          }
-        }
-        C *= 0.55;
+        const baseEnergy = getX(f, 1) * getX(f, 1) + getX(f, 2) * getX(f, 2);
+        C = getX(f, k) * baseEnergy;
       }
 
-      let val = c1 * L + c2 * Q + c3 * C;
-      if (val < 0) val = 0;
-      colY[k] = val;
+      // 4. Combine and Apply Soft-Saturation (tanh) to ensure stability and clear spectral distribution
+      const rawVal = c1 * L + c2 * Q * 0.15 + c3 * C * 0.10;
+      colY[k] = Math.tanh(Math.max(0, rawVal));
     }
     Y.push(colY);
   }
