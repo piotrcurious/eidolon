@@ -114,6 +114,12 @@
     .panels{grid-template-columns:1fr;}
     .status{margin-left:0;width:100%;}
   }
+
+  .viz-tab.active {
+    border-color: var(--cyan) !important;
+    color: var(--cyan) !important;
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.2);
+  }
 </style>
 </head>
 <body>
@@ -460,6 +466,22 @@
     <button type="button" id="updateFromNoteEditorBtn" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:8px 12px; border-radius:4px; border:1px solid var(--border); background:var(--panel2); color:var(--cyan); cursor:pointer; width:100%; margin-top:8px;">⚡ UPDATE WAVEFORM FROM NOTE EDITOR</button>
   </div>
 
+  <div class="panel" style="grid-column: span var(--grid-span, 1);">
+    <h2>8 · Intermediate Generation Visualizer</h2>
+    <div style="display:flex; gap:10px; margin-bottom:12px;">
+      <button type="button" id="vizTabProgression" class="viz-tab active" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:6px 12px; background:var(--panel2); border:1px solid var(--border); color:var(--ink); cursor:pointer; border-radius:4px;">Progression Flow</button>
+      <button type="button" id="vizTabPhrase" class="viz-tab" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:6px 12px; background:var(--panel2); border:1px solid var(--border); color:var(--muted); cursor:pointer; border-radius:4px;">Melody Phrase Decisions</button>
+    </div>
+
+    <div id="vizContentProgression" style="max-height:280px; overflow-y:auto; background:var(--panel2); border:1px solid var(--border); border-radius:4px; padding:12px; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:11px; line-height:1.5;">
+      <div style="color:var(--muted); font-style:italic;">No progression generated yet. Click GENERATE to inspect.</div>
+    </div>
+
+    <div id="vizContentPhrase" style="max-height:280px; overflow-y:auto; background:var(--panel2); border:1px solid var(--border); border-radius:4px; padding:12px; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:11px; line-height:1.5; display:none;">
+      <div style="color:var(--muted); font-style:italic;">No phrase generated yet. Click GENERATE to inspect.</div>
+    </div>
+  </div>
+
 </div>
 
 <div class="transport">
@@ -767,19 +789,54 @@ function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap
   const n = matrices.size;
   const seq = new Array(numChords);
   seq[0] = (lockedMap && lockedMap[0] !== undefined) ? lockedMap[0] : 0;
+
+  intermediateLog.progression = [];
+  intermediateLog.progression.push({
+    step: 0,
+    prevIndex: -1,
+    row: null,
+    selectedIndex: seq[0],
+    isLocked: (lockedMap && lockedMap[0] !== undefined)
+  });
+
   for (let i = 1; i < numChords; i++) {
-    if (lockedMap && lockedMap[i] !== undefined) { seq[i] = lockedMap[i]; continue; }
+    if (lockedMap && lockedMap[i] !== undefined) {
+      seq[i] = lockedMap[i];
+      intermediateLog.progression.push({
+        step: i,
+        prevIndex: seq[i - 1],
+        row: null,
+        selectedIndex: seq[i],
+        isLocked: true
+      });
+      continue;
+    }
     const prev = seq[i - 1];
     const row = new Float64Array(n);
     for (let j = 0; j < n; j++) row[j] = (1 - tension) * matrices.consonant[prev][j] + tension * matrices.chromatic[prev][j];
     seq[i] = rng.weightedIndex(row);
+
+    intermediateLog.progression.push({
+      step: i,
+      prevIndex: prev,
+      row: Array.from(row),
+      selectedIndex: seq[i],
+      isLocked: false
+    });
   }
-  if (numChords > 1 && !(lockedMap && lockedMap[numChords - 1] !== undefined)) seq[numChords - 1] = 0;
+  if (numChords > 1 && !(lockedMap && lockedMap[numChords - 1] !== undefined)) {
+    seq[numChords - 1] = 0;
+    const lastLog = intermediateLog.progression[numChords - 1];
+    if (lastLog) {
+      lastLog.forcedTonic = true;
+      lastLog.selectedIndex = 0;
+    }
+  }
   return seq;
 }
 function resolveChords(stateIndices, states, tuning, rng, jazzParams) {
   const semitone_steps = Math.max(1, centsToSteps(100, tuning.edo));
-  return stateIndices.map(idx => {
+  return stateIndices.map((idx, stepIdx) => {
     const st = states[idx];
     let rootSteps = resolveChordRootSteps(idx, states, tuning);
     let quality = st.quality;
@@ -802,6 +859,16 @@ function resolveChords(stateIndices, states, tuning, rng, jazzParams) {
 
     const extensions = jazzParams.enabled ? addExtensions(quality, rng, jazzParams.extensionDensity) : [];
     const toneSteps = resolveChordTones(st, tuning, extensions, tritoneSubbed);
+
+    // Save resolved info to intermediate log
+    if (intermediateLog.progression[stepIdx]) {
+      intermediateLog.progression[stepIdx].resolvedName = name;
+      intermediateLog.progression[stepIdx].rootSteps = rootSteps;
+      intermediateLog.progression[stepIdx].toneSteps = [...toneSteps];
+      intermediateLog.progression[stepIdx].extensions = [...extensions];
+      intermediateLog.progression[stepIdx].tritoneSubbed = tritoneSubbed;
+    }
+
     return { name, rootSteps, toneSteps, quality, stateIndex: idx, tritoneSubbed, extensions };
   });
 }
@@ -844,6 +911,8 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   let lastPitchSteps = 0;
   let isFirstNote = true;
 
+  intermediateLog.phrase = [];
+
   for (let step = 0; step < total16ths; step++) {
     const stepIdx = step % 32;
     const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
@@ -883,11 +952,15 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       // 2. Compute motion weights based on conjunct vs disjunct slider
       // and directional trends: -1 (down), 0 (balanced), +1 (up)
       let bestCandidate = candidateSteps[0];
+      let candidateWeights = null;
+      let chosenIdx = -1;
+
       if (isFirstNote) {
-        bestCandidate = candidateSteps[Math.floor(rng.next() * candidateSteps.length)];
+        chosenIdx = Math.floor(rng.next() * candidateSteps.length);
+        bestCandidate = candidateSteps[chosenIdx];
         isFirstNote = false;
       } else {
-        const candidateWeights = new Float64Array(candidateSteps.length);
+        const weights = new Float64Array(candidateSteps.length);
         for (let i = 0; i < candidateSteps.length; i++) {
           const cand = candidateSteps[i];
           const distSteps = Math.abs(cand - lastPitchSteps);
@@ -907,10 +980,11 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
             dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
           }
 
-          candidateWeights[i] = stepAffinity * dirAffinity;
+          weights[i] = stepAffinity * dirAffinity;
         }
-        const chosenIdx = rng.weightedIndex(candidateWeights);
+        chosenIdx = rng.weightedIndex(weights);
         bestCandidate = candidateSteps[chosenIdx];
+        candidateWeights = Array.from(weights);
       }
 
       lastPitchSteps = bestCandidate;
@@ -920,11 +994,26 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       const driftLimit = p.octaveDrift !== undefined ? p.octaveDrift : 1;
       const driftOffset = driftLimit > 0 ? Math.round(rng.range(-driftLimit, driftLimit + 0.99)) : 0;
       const absoluteOctave = baseOct + driftOffset;
+      const finalSteps = absoluteOctave * tuning.edo + bestCandidate;
+
+      // Log the generation decision
+      intermediateLog.phrase.push({
+        step: step,
+        stepIdx: stepIdx,
+        beatPos: beatPos,
+        chordName: chord.name,
+        candidateSteps: Array.from(candidateSteps),
+        candidateWeights: candidateWeights,
+        chosenIdx: chosenIdx,
+        chosenStep: bestCandidate,
+        octave: absoluteOctave,
+        absoluteSteps: finalSteps
+      });
 
       notes.push({
         startBeat: beatPos,
         durBeats: durBeats,
-        steps: absoluteOctave * tuning.edo + bestCandidate,
+        steps: finalSteps,
         seqType: 'phrase',
         stepIdx: stepIdx
       });
@@ -1425,6 +1514,7 @@ let currentStates = null, currentTuning = null, currentMatrices = null;
 let currentStateIndices = null, currentChords = null;
 let lockedSlots = {};
 let lastFullParams = null;
+let intermediateLog = { progression: [], phrase: [] };
 let editingCellIndex = null;
 
 // Populate UI options
@@ -1702,6 +1792,134 @@ distributionSelect.addEventListener('change', () => {
   $('markovMatrixBlock').style.display = distributionSelect.value === 'custom_markov' ? 'block' : 'none';
 });
 
+function renderIntermediateLog() {
+  const pContent = $('vizContentProgression');
+  const fContent = $('vizContentPhrase');
+  if (!pContent || !fContent) return;
+
+  // Render Progression Flow
+  let pHTML = '';
+  if (!intermediateLog.progression || intermediateLog.progression.length === 0) {
+    pHTML = `<div style="color:var(--muted); font-style:italic;">No progression generated yet. Click GENERATE to inspect.</div>`;
+  } else {
+    pHTML += `<div style="margin-bottom:12px; font-weight:bold; color:var(--cyan); border-bottom:1px solid var(--border); padding-bottom:6px;">MARKOV PATH TRACE &amp; CHORD RESOLUTIONS:</div>`;
+    intermediateLog.progression.forEach((step, idx) => {
+      const isAnchor = idx === 0 || idx === intermediateLog.progression.length - 1;
+      const lockedStr = step.isLocked ? ' <span style="color:var(--amber);">[🔒 LOCKED]</span>' : '';
+      const forcedStr = step.forcedTonic ? ' <span style="color:var(--phosphor);">[RE-TONIC RESOLVE]</span>' : '';
+      const subbedStr = step.tritoneSubbed ? ' <span style="color:var(--magenta);">[TRITONE SUB]</span>' : '';
+
+      pHTML += `<div style="margin-bottom:10px; padding:8px; background:var(--panel); border:1px solid var(--border); border-radius:4px;">`;
+      pHTML += `  <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom:4px;">`;
+      pHTML += `    <span>Chord ${idx + 1}: <span style="color:var(--ink);">${step.resolvedName || 'Unknown'}</span>${lockedStr}${forcedStr}${subbedStr}</span>`;
+      pHTML += `    <span style="color:var(--muted);">Root steps: ${step.rootSteps || 0}</span>`;
+      pHTML += `  </div>`;
+
+      if (step.toneSteps) {
+        pHTML += `  <div style="font-size:10px; color:var(--muted); margin-bottom:4px;">`;
+        pHTML += `    Chord Tones (EDO Steps): [${step.toneSteps.join(', ')}]`;
+        if (step.extensions && step.extensions.length > 0) {
+          pHTML += ` | Extensions: <span style="color:var(--cyan);">[${step.extensions.join(', ')}]</span>`;
+        }
+        pHTML += `  </div>`;
+      }
+
+      if (step.row) {
+        pHTML += `  <div style="margin-top:6px; font-size:10px; border-top:1px dashed var(--border); padding-top:4px;">`;
+        pHTML += `    <div style="color:var(--muted); font-size:9.5px; margin-bottom:3px; text-transform:uppercase;">Markov Transition Probabilities from Chord ${idx}:</div>`;
+        pHTML += `    <div style="display:flex; flex-direction:column; gap:2px;">`;
+        step.row.forEach((prob, stateIdx) => {
+          const stateName = currentStates[stateIdx] ? currentStates[stateIdx].name : `S${stateIdx}`;
+          const percent = (prob * 100).toFixed(1);
+          const isSelected = stateIdx === step.selectedIndex;
+          const boldStyle = isSelected ? 'font-weight:bold; color:var(--cyan);' : 'color:var(--muted);';
+          const indicator = isSelected ? '◀ SELECTED' : '';
+
+          pHTML += `      <div style="display:flex; align-items:center; gap:6px; ${boldStyle}">`;
+          pHTML += `        <span style="width:70px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${stateName}:</span>`;
+          pHTML += `        <div style="flex:1; height:4px; background:var(--panel2); border-radius:2px; position:relative;">`;
+          pHTML += `          <div style="position:absolute; left:0; top:0; bottom:0; width:${percent}%; background:${isSelected ? 'var(--cyan)' : 'var(--border)'}; border-radius:2px;"></div>`;
+          pHTML += `        </div>`;
+          pHTML += `        <span style="width:42px; text-align:right;">${percent}%</span>`;
+          pHTML += `        <span style="width:65px; font-size:9px; color:var(--cyan); font-weight:bold;">${indicator}</span>`;
+          pHTML += `      </div>`;
+        });
+        pHTML += `    </div>`;
+        pHTML += `  </div>`;
+      } else if (idx > 0) {
+        pHTML += `  <div style="font-size:10px; color:var(--muted); font-style:italic;">Direct transitions bypassed (preset, locked, or anchor state).</div>`;
+      }
+      pHTML += `</div>`;
+    });
+  }
+  pContent.innerHTML = pHTML;
+
+  // Render Phrase Decisions
+  let fHTML = '';
+  if (!intermediateLog.phrase || intermediateLog.phrase.length === 0) {
+    fHTML = `<div style="color:var(--muted); font-style:italic;">No melody phrase notes triggered yet. Ensure "Melodic Rhythm Sequencer" has active trigger cues and click GENERATE.</div>`;
+  } else {
+    fHTML += `<div style="margin-bottom:12px; font-weight:bold; color:var(--cyan); border-bottom:1px solid var(--border); padding-bottom:6px;">MELODIC DECISION TREE FOR EACH TRIGGERED STEP:</div>`;
+    intermediateLog.phrase.forEach((note, idx) => {
+      fHTML += `<div style="margin-bottom:10px; padding:8px; background:var(--panel); border:1px solid var(--border); border-radius:4px;">`;
+      fHTML += `  <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom:4px;">`;
+      fHTML += `    <span>Step ${note.stepIdx + 1} (Beat ${note.beatPos.toFixed(2)})</span>`;
+      fHTML += `    <span style="color:var(--muted);">Backing Chord: <span style="color:var(--ink);">${note.chordName}</span></span>`;
+      fHTML += `  </div>`;
+
+      fHTML += `  <div style="font-size:10px; color:var(--muted); margin-bottom:4px;">`;
+      fHTML += `    Selected Pitch Steps: <span style="color:var(--cyan); font-weight:bold;">${note.absoluteSteps}</span> (Octave ${note.octave}, Step offset: ${note.chosenStep})`;
+      fHTML += `  </div>`;
+
+      if (note.candidateSteps && note.candidateWeights) {
+        fHTML += `  <div style="margin-top:6px; font-size:10px; border-top:1px dashed var(--border); padding-top:4px;">`;
+        fHTML += `    <div style="color:var(--muted); font-size:9.5px; margin-bottom:3px; text-transform:uppercase;">Weighted Conjunct Step Candidates:</div>`;
+        fHTML += `    <div style="display:flex; flex-direction:column; gap:3px;">`;
+
+        // Find maximum weight for normalization visual bar scale
+        let maxW = 0.00001;
+        note.candidateWeights.forEach(w => { if (w > maxW) maxW = w; });
+
+        note.candidateSteps.forEach((cand, cIdx) => {
+          const w = note.candidateWeights[cIdx] || 0;
+          const pct = ((w / maxW) * 100).toFixed(1);
+          const isSel = cIdx === note.chosenIdx;
+          const boldStyle = isSel ? 'font-weight:bold; color:var(--cyan);' : 'color:var(--muted);';
+          const indicator = isSel ? '◀ CHOSEN' : '';
+
+          fHTML += `      <div style="display:flex; align-items:center; gap:6px; ${boldStyle}">`;
+          fHTML += `        <span style="width:45px; display:inline-block;">Step ${cand}:</span>`;
+          fHTML += `        <div style="flex:1; height:4px; background:var(--panel2); border-radius:2px; position:relative;">`;
+          fHTML += `          <div style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${isSel ? 'var(--cyan)' : 'var(--border)'}; border-radius:2px;"></div>`;
+          fHTML += `        </div>`;
+          fHTML += `        <span style="width:40px; text-align:right;">W: ${w.toFixed(2)}</span>`;
+          fHTML += `        <span style="width:55px; font-size:9px; color:var(--cyan); font-weight:bold;">${indicator}</span>`;
+          fHTML += `      </div>`;
+        });
+        fHTML += `    </div>`;
+        fHTML += `  </div>`;
+      } else {
+        fHTML += `  <div style="font-size:10px; color:var(--muted); font-style:italic;">First melody note (randomly seeded candidate selection).</div>`;
+      }
+      fHTML += `</div>`;
+    });
+  }
+  fContent.innerHTML = fHTML;
+}
+
+$('vizTabProgression').addEventListener('click', () => {
+  $('vizTabProgression').classList.add('active');
+  $('vizTabPhrase').classList.remove('active');
+  $('vizContentProgression').style.display = 'block';
+  $('vizContentPhrase').style.display = 'none';
+});
+$('vizTabPhrase').addEventListener('click', () => {
+  $('vizTabPhrase').classList.add('active');
+  $('vizTabProgression').classList.remove('active');
+  $('vizContentPhrase').style.display = 'block';
+  $('vizContentProgression').style.display = 'none';
+});
+
 function openChordEditor(cellIndex) {
   if (!currentStates || !currentChords) return;
   editingCellIndex = cellIndex;
@@ -1960,7 +2178,9 @@ async function doGenerate(p, onProgress) {
   lastFullParams = p;
 
   renderProgressionStrip(chords);
-  return await renderFromChords(chords, p, tuning, voiceRng, onProgress);
+  const secs = await renderFromChords(chords, p, tuning, voiceRng, onProgress);
+  renderIntermediateLog();
+  return secs;
 }
 
 // Global reference for surgically edited notes
