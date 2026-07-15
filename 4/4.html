@@ -313,6 +313,7 @@
         <option value="uniform">Uniform — flat / harsh</option>
         <option value="cauchy">Cauchy — heavy-tailed lurches</option>
         <option value="bimodal">Bimodal — flickers between two poles</option>
+        <option value="custom_markov">Custom Editable Markov Matrix</option>
       </select>
     </div>
     <div class="control">
@@ -322,6 +323,27 @@
     <div class="control">
       <label>Richness / wander <span class="val" id="richnessVal">0.40</span></label>
       <input type="range" id="richnessSlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+
+    <!-- Spectral evolution drum machine sequencer -->
+    <div class="control" style="margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+      <label>Spectral Rhythm Sequencer</label>
+      <div class="drum-machine">
+        <div class="drum-row">
+          <div class="drum-label" style="width:55px;">TRIG</div>
+          <div class="drum-steps" id="spectralRhythmSteps"></div>
+        </div>
+      </div>
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Active steps trigger state mutation/harmonic excitation.</span>
+    </div>
+
+    <!-- 7x7 Markov Matrix UI -->
+    <div id="markovMatrixBlock" style="display:none; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+      <label style="font-size:11.5px; color:var(--muted); text-transform:uppercase; display:block; margin-bottom:8px;">7x7 Markov Transition Weights</label>
+      <div style="display:grid; grid-template-columns: repeat(8, 1fr); gap:3px;" id="markovGridContainer">
+        <!-- populated dynamically via JS -->
+      </div>
+      <button type="button" id="normalizeMarkovBtn" style="font-family:'Space Mono', ui-monospace, monospace; font-size:10px; padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--panel2); color:var(--phosphor); cursor:pointer; width:100%; margin-top:8px;">Normalize transition rows</button>
     </div>
   </div>
 
@@ -927,29 +949,55 @@ const SPECTRAL_KERNELS = {
   bimodal:  { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-((d - 2) ** 2) / (2 * s * s)) + Math.exp(-((d + 2) ** 2) / (2 * s * s)) },
 };
 
-function buildSpectralImage(rng, template, numFrames, p) {
-  const stepSigma = lerp(0.4, 3.0, p.volatility);
-  const centerSigma = lerp(0.5, 4.0, p.richness);
-  const kernel = SPECTRAL_KERNELS[p.spectralDistribution] || SPECTRAL_KERNELS.gaussian;
-  const trans = [];
-  for (let i = 0; i < 7; i++) {
-    const row = new Float64Array(7); let sum = 0;
-    for (let j = 0; j < 7; j++) {
-      const step = kernel.step(j - i, stepSigma);
-      const pull = kernel.pull(j - SPECTRAL_CENTER, centerSigma);
-      row[j] = step * pull; sum += row[j];
+function buildSpectralImage(rng, template, numFrames, p, startBeat = 0, secPerBeat = 0.5) {
+  let trans = [];
+  if (p.spectralDistribution === 'custom_markov' && p.customMarkovMatrix) {
+    trans = p.customMarkovMatrix;
+  } else {
+    const stepSigma = lerp(0.4, 3.0, p.volatility);
+    const centerSigma = lerp(0.5, 4.0, p.richness);
+    const kernel = SPECTRAL_KERNELS[p.spectralDistribution] || SPECTRAL_KERNELS.gaussian;
+    for (let i = 0; i < 7; i++) {
+      const row = new Float64Array(7); let sum = 0;
+      for (let j = 0; j < 7; j++) {
+        const step = kernel.step(j - i, stepSigma);
+        const pull = kernel.pull(j - SPECTRAL_CENTER, centerSigma);
+        row[j] = step * pull; sum += row[j];
+      }
+      for (let j = 0; j < 7; j++) row[j] /= sum;
+      trans.push(row);
     }
-    for (let j = 0; j < 7; j++) row[j] /= sum;
-    trans.push(row);
   }
+
   const numH = template.numHarmonics;
   const image = [];
   const state = new Int8Array(numH + 1).fill(SPECTRAL_CENTER);
+  const FRAME_HOP_SEC = 0.025;
+  const framesPerBeat = 1.0 / (FRAME_HOP_SEC / secPerBeat);
+
   for (let f = 0; f < numFrames; f++) {
     const col = new Float64Array(numH + 1);
+
+    // Evaluate if the current frame corresponds to a triggered step in our Spectral Rhythm Sequencer
+    const currentBeat = startBeat + f / framesPerBeat;
+    const step16th = Math.floor(currentBeat * 4) % 16;
+    const rhythmTriggerActive = p.spectralCues && p.spectralCues[step16th];
+
     for (let k = 1; k <= numH; k++) {
-      if (f > 0) state[k] = rng.weightedIndex(trans[state[k]]);
-      col[k] = SPECTRAL_LEVELS[state[k]];
+      if (f > 0) {
+        state[k] = rng.weightedIndex(trans[state[k]]);
+      }
+
+      let val = SPECTRAL_LEVELS[state[k]];
+      if (rhythmTriggerActive) {
+        // Boost state mutation probability and harmonically excite higher frequencies
+        if (k > numH / 2) {
+          val *= 2.0; // Dynamic high-harmonic excitation
+        } else {
+          val *= 1.4;
+        }
+      }
+      col[k] = val;
     }
     image.push(col);
   }
@@ -1212,6 +1260,8 @@ const drumCues = {
   hat:   [1,1,1,1, 1,1,1,1, 1,1,1,1, 1,1,1,1]
 };
 
+const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
+
 // Initialize Rhythm Cue UI
 const drumUI = $('drumMachineUI');
 Object.keys(drumCues).forEach(instr => {
@@ -1228,6 +1278,114 @@ Object.keys(drumCues).forEach(instr => {
     stepsDiv.appendChild(step);
   });
   row.appendChild(label); row.appendChild(stepsDiv); drumUI.appendChild(row);
+});
+
+// Initialize Spectral Evolution Sequencer UI
+const spectralStepsContainer = $('spectralRhythmSteps');
+spectralCues.forEach((val, stepIdx) => {
+  const step = document.createElement('div');
+  step.className = 'drum-step' + (val ? ' active' : '');
+  step.addEventListener('click', () => {
+    spectralCues[stepIdx] = spectralCues[stepIdx] ? 0 : 1;
+    step.classList.toggle('active');
+  });
+  spectralStepsContainer.appendChild(step);
+});
+
+// Initialize 7x7 custom Markov transition matrix
+const markovGrid = $('markovGridContainer');
+const markovCells = [];
+const defaultMarkovMatrix = Array.from({ length: 7 }, (_, i) => {
+  const row = new Float32Array(7);
+  for (let j = 0; j < 7; j++) {
+    const dist = Math.abs(i - j);
+    row[j] = Math.max(0.05, 1.0 - dist * 0.3); // close ones are likely transitions
+  }
+  const sum = row.reduce((a, b) => a + b, 0);
+  return Array.from(row.map(x => parseFloat((x / sum).toFixed(2))));
+});
+
+function createMarkovUI() {
+  markovGrid.innerHTML = '';
+  // Row headers and columns
+  // First row is header columns: "From/To", "S1", ..., "S7"
+  const headerLabels = ['', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'];
+  headerLabels.forEach(lbl => {
+    const d = document.createElement('div');
+    d.style.fontSize = '9px';
+    d.style.color = 'var(--muted)';
+    d.style.textAlign = 'center';
+    d.style.alignSelf = 'center';
+    d.textContent = lbl;
+    markovGrid.appendChild(d);
+  });
+
+  for (let i = 0; i < 7; i++) {
+    // Row header label
+    const rh = document.createElement('div');
+    rh.style.fontSize = '9px';
+    rh.style.color = 'var(--muted)';
+    rh.style.textAlign = 'right';
+    rh.style.alignSelf = 'center';
+    rh.style.paddingRight = '3px';
+    rh.textContent = 'S' + (i + 1);
+    markovGrid.appendChild(rh);
+
+    markovCells[i] = [];
+    for (let j = 0; j < 7; j++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = '0';
+      inp.max = '10';
+      inp.step = '0.01';
+      inp.value = defaultMarkovMatrix[i][j];
+      inp.style.width = '100%';
+      inp.style.background = 'var(--panel2)';
+      inp.style.border = '1px solid var(--border)';
+      inp.style.color = 'var(--cyan)';
+      inp.style.fontFamily = 'inherit';
+      inp.style.fontSize = '9px';
+      inp.style.padding = '3px';
+      inp.style.textAlign = 'center';
+      inp.style.borderRadius = '3px';
+      markovGrid.appendChild(inp);
+      markovCells[i][j] = inp;
+    }
+  }
+}
+createMarkovUI();
+
+function getCustomMarkovMatrix() {
+  const matrix = [];
+  for (let i = 0; i < 7; i++) {
+    const row = [];
+    let sum = 0;
+    for (let j = 0; j < 7; j++) {
+      const v = parseFloat(markovCells[i][j].value) || 0;
+      row.push(v);
+      sum += v;
+    }
+    if (sum === 0) {
+      // Avoid division by 0; fallback to identity row
+      row[i] = 1.0;
+      sum = 1.0;
+    }
+    matrix.push(row.map(v => v / sum));
+  }
+  return matrix;
+}
+
+$('normalizeMarkovBtn').addEventListener('click', () => {
+  const matrix = getCustomMarkovMatrix();
+  for (let i = 0; i < 7; i++) {
+    for (let j = 0; j < 7; j++) {
+      markovCells[i][j].value = matrix[i][j].toFixed(2);
+    }
+  }
+});
+
+distributionSelect.addEventListener('change', () => {
+  $('markovMatrixBlock').style.display = distributionSelect.value === 'custom_markov' ? 'block' : 'none';
 });
 
 function openChordEditor(cellIndex) {
@@ -1378,6 +1536,8 @@ function readParams() {
     evenDrive: parseFloat(evenSlider.value), oddDrive: parseFloat(oddSlider.value),
     memory: parseFloat(memorySlider.value),
     volatility: parseFloat(volatilitySlider.value), richness: parseFloat(richnessSlider.value), spectralDistribution: distributionSelect.value,
+    customMarkovMatrix: getCustomMarkovMatrix(),
+    spectralCues: [...spectralCues],
     attack: parseFloat(attackSlider.value), release: parseFloat(releaseSlider.value),
     brightness: parseFloat(brightnessSlider.value), space: parseFloat(spaceSlider.value), gain: parseFloat(gainSlider.value),
     drumCues: { kick: [...drumCues.kick], snare: [...drumCues.snare], hat: [...drumCues.hat] }
@@ -1408,7 +1568,7 @@ async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx) {
     const noteFormants = getFormants(p, note.startBeat, secPerBeat);
     const template = buildHarmonicTemplate(f0, p, sr, noteFormants);
     const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
-    const image = buildSpectralImage(rng, template, numFrames, p);
+    const image = buildSpectralImage(rng, template, numFrames, p, note.startBeat, secPerBeat);
     const pan = panFn(note);
     renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, image, frameHopSamples, attackSec, releaseSec, gain, pan);
 
