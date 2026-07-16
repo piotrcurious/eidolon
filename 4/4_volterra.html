@@ -224,6 +224,10 @@
       <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
     </label>
     <div style="height:14px; width:1px; background:var(--border);"></div>
+    <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+      <input type="checkbox" id="snapHarmonicCheckbox" style="accent-color:var(--cyan);" checked> Snap to Harmonic Grid
+    </label>
+    <div style="height:14px; width:1px; background:var(--border);"></div>
     <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
     <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
       <option value="attractor">Tone Attractor (Boost/Draw)</option>
@@ -236,6 +240,10 @@
     <div style="height:14px; width:1px; background:var(--border);"></div>
     <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
       Attraction Strength: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:70px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
+    </label>
+    <div style="height:14px; width:1px; background:var(--border);"></div>
+    <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+      Canvas Height: <input type="range" id="canvasHeightSlider" min="200" max="1200" step="10" value="800" style="width:90px; height:4px; margin:0;"> <span id="canvasHeightVal" style="color:var(--cyan); font-weight:600;">800px</span>
     </label>
   </div>
 
@@ -1636,30 +1644,97 @@ function drawBezierCurves(ctx, w, h) {
 function drawSpectralImage(image, maxHarm) {
   lastVizImage = image; lastVizMaxHarm = maxHarm;
   const canvas = document.getElementById('spectralCanvas');
-  const rowH = 8;
+
+  // Dynamic height adjustment to make editor larger (e.g. 800px)
   const dpr = window.devicePixelRatio || 1;
+  const requestedHeight = parseFloat(document.getElementById('canvasHeightSlider').value) || 800;
+  const rowH = requestedHeight / maxHarm;
+
   const cssWidth = canvas.clientWidth || (canvas.parentElement && canvas.parentElement.clientWidth) || 900;
   const displayW = clamp(Math.round(cssWidth * dpr), 200, 2200);
   const agg = aggregateImageForDisplay(image, displayW, maxHarm);
-  const w = displayW, h = maxHarm * rowH;
+  const w = displayW, h = Math.round(maxHarm * rowH * dpr);
   canvas.width = w; canvas.height = h;
-  canvas.style.height = Math.round(h / dpr) + 'px';
+  canvas.style.height = requestedHeight + 'px';
+
   const ctx = canvas.getContext('2d');
   const maxVal = percentileMax(agg, maxHarm, 0.97);
   const imgData = ctx.createImageData(w, h);
+
+  // Render Spectrogram grid elements
+  const rowH_dpr = rowH * dpr;
   for (let x = 0; x < w; x++) {
     const col = agg[x];
     for (let k = 1; k <= maxHarm; k++) {
       const v = clamp(col[k] / maxVal, 0, 1);
       const [r, g, b] = spectralColormap(v);
-      const yTop = h - k * rowH;
-      for (let ry = 0; ry < rowH; ry++) {
-        const idx = ((yTop + ry) * w + x) * 4;
+      const yTop = Math.round(h - k * rowH_dpr);
+      const rowHeight_rounded = Math.round(rowH_dpr);
+      for (let ry = 0; ry < rowHeight_rounded; ry++) {
+        const currY = yTop + ry;
+        if (currY < 0 || currY >= h) continue;
+        const idx = (currY * w + x) * 4;
         imgData.data[idx] = r; imgData.data[idx + 1] = g; imgData.data[idx + 2] = b; imgData.data[idx + 3] = 255;
       }
     }
   }
   ctx.putImageData(imgData, 0, 0);
+
+  // Draw Horizontal and Vertical Quantization Grid lines matching EDO scale
+  if (paintEnabled) {
+    ctx.setLineDash([3, 5]);
+    ctx.lineWidth = 1;
+
+    for (let k = 1; k <= maxHarm; k++) {
+      const yVal = h - (k - 0.5) * rowH_dpr;
+
+      // Draw horizontal line
+      ctx.strokeStyle = 'rgba(82, 214, 198, 0.18)'; // Faint Cyan
+      ctx.beginPath();
+      ctx.moveTo(0, yVal);
+      ctx.lineTo(w, yVal);
+      ctx.stroke();
+
+      // Microtonal EDO scale interval computations
+      const edo = currentTuning ? currentTuning.edo : 12;
+      const rawSteps = edo * Math.log2(k);
+      const roundedSteps = Math.round(rawSteps);
+      const centDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+      const centSign = centDev >= 0 ? `+${centDev}` : `${centDev}`;
+      const devString = Math.abs(centDev) > 3 ? ` (${centSign}¢)` : '';
+
+      let noteLabel = `H${k}`;
+      if (k === 1) noteLabel += ' [Root]';
+      else if (k === 2) noteLabel += ' [Octave]';
+      else if (k === 3) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+      else if (k === 4) noteLabel += ' [Double Octave]';
+      else if (k === 5) noteLabel += ` [Third / step ${roundedSteps}${devString}]`;
+      else if (k === 6) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+      else if (k === 8) noteLabel += ' [Triple Octave]';
+      else noteLabel += ` [step ${roundedSteps}${devString}]`;
+
+      ctx.fillStyle = 'rgba(82, 214, 198, 0.55)';
+      ctx.font = '10px "IBM Plex Mono", monospace';
+      ctx.fillText(noteLabel, 12, yVal - 3);
+    }
+
+    // Draw Vertical Bar division lines
+    ctx.strokeStyle = 'rgba(232, 163, 61, 0.15)'; // Faint Amber
+    const barsCount = lastFullParams ? lastFullParams.bars : 8;
+    for (let bar = 0; bar <= barsCount; bar++) {
+      const xVal = (bar / barsCount) * w;
+      ctx.beginPath();
+      ctx.moveTo(xVal, 0);
+      ctx.lineTo(xVal, h);
+      ctx.stroke();
+
+      if (bar < barsCount) {
+        ctx.fillStyle = 'rgba(232, 163, 61, 0.45)';
+        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+        ctx.fillText(`Bar ${bar + 1}`, xVal + 8, h - 8);
+      }
+    }
+  }
 
   // Overlay the active Bezier curves and control point handles
   drawBezierCurves(ctx, w, h);
@@ -2296,6 +2371,16 @@ specCanvas.addEventListener('mousedown', (e) => {
   }
 });
 
+// Height Adjustment Slider Wiring
+const canvasHeightSlider = $('canvasHeightSlider');
+const canvasHeightVal = $('canvasHeightVal');
+canvasHeightSlider.addEventListener('input', () => {
+  canvasHeightVal.textContent = canvasHeightSlider.value + 'px';
+  if (lastVizImage) {
+    drawSpectralImage(lastVizImage, lastVizMaxHarm);
+  }
+});
+
 specCanvas.addEventListener('mousemove', (e) => {
   if (!paintEnabled || draggedPointIdx === -1) return;
   const rect = specCanvas.getBoundingClientRect();
@@ -2304,8 +2389,15 @@ specCanvas.addEventListener('mousemove', (e) => {
 
   const activePts = curves[activeCurveType];
 
-  // Update Y coordinate
-  activePts[draggedPointIdx].y = normY;
+  // Snapping/quantization grid constraint matching the active tonal scale harmonics:
+  const shouldSnap = $('snapHarmonicCheckbox').checked;
+  if (shouldSnap) {
+    const totalH = lastVizMaxHarm || 24;
+    const kNearest = Math.round(1 + normY * (totalH - 1));
+    activePts[draggedPointIdx].y = clamp((kNearest - 1) / (totalH - 1), 0, 1);
+  } else {
+    activePts[draggedPointIdx].y = normY;
+  }
 
   // Update horizontal X only for intermediate handles P1 and P2
   if (draggedPointIdx === 1) {
