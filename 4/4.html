@@ -216,6 +216,29 @@
 
 <section class="spectral-section">
   <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— lead voice · harmonic index (↑) × time (→) · Markov-evolved amplitude</span></div>
+
+  <!-- Interactive Tonal Spectral Painting Dashboard -->
+  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; background:var(--panel); border:1px solid var(--border); padding:8px 12px; border-radius:5px;">
+    <span style="font-size:11px; font-weight:bold; color:var(--phosphor);">🎨 TONAL SPECTRAL PAINTING:</span>
+    <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+      <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
+    </label>
+    <div style="height:14px; width:1px; background:var(--border);"></div>
+    <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
+    <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+      <option value="attractor">Tone Attractor (Boost/Draw)</option>
+      <option value="lowLimit">Low Frequency Limit (Filter)</option>
+      <option value="highLimit">High Frequency Limit (Filter)</option>
+    </select>
+    <div style="height:14px; width:1px; background:var(--border);"></div>
+    <button type="button" id="resetActiveCurveBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Reset Active</button>
+    <button type="button" id="clearAllCurvesBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Clear All</button>
+    <div style="height:14px; width:1px; background:var(--border);"></div>
+    <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+      Attraction Strength: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:70px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
+    </label>
+  </div>
+
   <canvas id="spectralCanvas"></canvas>
 </section>
 
@@ -532,6 +555,23 @@ class RNG {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function evaluateBezier(x, p0, p1, p2, p3) {
+  let low = 0, high = 1;
+  for (let i = 0; i < 12; i++) {
+    const mid = (low + high) * 0.5;
+    const om = 1 - mid;
+    const xc = om * om * om * p0.x + 3 * om * om * mid * p1.x + 3 * om * mid * mid * p2.x + mid * mid * mid * p3.x;
+    if (xc < x) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  const u = (low + high) * 0.5;
+  const om = 1 - u;
+  return om * om * om * p0.y + 3 * om * om * u * p1.y + 3 * om * u * u * p2.y + u * u * u * p3.y;
+}
 
 function normalizeRows(rows) {
   return rows.map(row => {
@@ -1246,6 +1286,13 @@ function buildSpectralImage(rng, template, numFrames, p, startBeat = 0, secPerBe
     const step32nd = Math.floor(currentBeat * 4) % 32;
     const rhythmTriggerActive = p.spectralCues && p.spectralCues[step32nd];
 
+    const xRatio = (numFrames > 1) ? f / (numFrames - 1) : 0;
+
+    // Evaluate Bezier curves at the current normalized time of composition
+    const attCurve = p.paintEnabled ? evaluateBezier(xRatio, p.curves.attractor[0], p.curves.attractor[1], p.curves.attractor[2], p.curves.attractor[3]) * numH : 0;
+    const lowCurve = p.paintEnabled ? evaluateBezier(xRatio, p.curves.lowLimit[0], p.curves.lowLimit[1], p.curves.lowLimit[2], p.curves.lowLimit[3]) * numH : 0;
+    const highCurve = p.paintEnabled ? evaluateBezier(xRatio, p.curves.highLimit[0], p.curves.highLimit[1], p.curves.highLimit[2], p.curves.highLimit[3]) * numH : 0;
+
     for (let k = 1; k <= numH; k++) {
       if (f > 0) {
         state[k] = rng.weightedIndex(trans[state[k]]);
@@ -1258,6 +1305,17 @@ function buildSpectralImage(rng, template, numFrames, p, startBeat = 0, secPerBe
           val *= 2.0; // Dynamic high-harmonic excitation
         } else {
           val *= 1.4;
+        }
+      }
+
+      // Apply Tonal Spectral Painting Bezier Curves (attraction and frequency cut-offs)
+      if (p.paintEnabled) {
+        if (k < lowCurve || k > highCurve) {
+          val = 0;
+        } else {
+          const dist = Math.abs(k - attCurve);
+          const attractMultiplier = 1.0 + p.attractStrength * 3.5 * Math.exp(-(dist * dist) / 2.0);
+          val *= attractMultiplier;
         }
       }
 
@@ -1458,6 +1516,106 @@ function percentileMax(image, maxHarm, pct) {
   return Math.max(vals[idx], 1e-6);
 }
 let lastVizImage = null, lastVizMaxHarm = 24;
+
+// Global Curves state for Tonal Spectral Painting
+let paintEnabled = false;
+let activeCurveType = 'attractor';
+let attractStrength = 0.60;
+let curves = {
+  attractor: [
+    { x: 0.0, y: 0.5 },
+    { x: 0.33, y: 0.5 },
+    { x: 0.67, y: 0.5 },
+    { x: 1.0, y: 0.5 }
+  ],
+  lowLimit: [
+    { x: 0.0, y: 0.0 },
+    { x: 0.33, y: 0.0 },
+    { x: 0.67, y: 0.0 },
+    { x: 1.0, y: 0.0 }
+  ],
+  highLimit: [
+    { x: 0.0, y: 1.0 },
+    { x: 0.33, y: 1.0 },
+    { x: 0.67, y: 1.0 },
+    { x: 1.0, y: 1.0 }
+  ]
+};
+
+function drawBezierCurves(ctx, w, h) {
+  if (!paintEnabled) return;
+
+  const curveColors = {
+    attractor: 'rgba(82, 214, 198, 0.95)', // Cyan
+    lowLimit: 'rgba(232, 163, 61, 0.95)',  // Amber
+    highLimit: 'rgba(196, 84, 74, 0.95)'   // Red
+  };
+
+  const curveLabel = {
+    attractor: 'Tone Attractor',
+    lowLimit: 'Low Frequency Limit',
+    highLimit: 'High Frequency Limit'
+  };
+
+  Object.keys(curves).forEach(key => {
+    const pts = curves[key];
+    const isActive = (key === activeCurveType);
+    ctx.lineWidth = isActive ? 3 : 1.5;
+    ctx.setLineDash(isActive ? [] : [4, 4]);
+    ctx.strokeStyle = curveColors[key];
+
+    // Draw Bezier line
+    ctx.beginPath();
+    const startX = pts[0].x * w;
+    const startY = (1 - pts[0].y) * h;
+    ctx.moveTo(startX, startY);
+
+    const cp1X = pts[1].x * w;
+    const cp1Y = (1 - pts[1].y) * h;
+    const cp2X = pts[2].x * w;
+    const cp2Y = (1 - pts[2].y) * h;
+    const endX = pts[3].x * w;
+    const endY = (1 - pts[3].y) * h;
+
+    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+    ctx.stroke();
+
+    // Draw handles / control points for the active curve
+    if (isActive) {
+      ctx.setLineDash([]);
+      pts.forEach((pt, idx) => {
+        const hX = pt.x * w;
+        const hY = (1 - pt.y) * h;
+
+        // Draw outer halo
+        ctx.beginPath();
+        ctx.arc(hX, hY, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(20, 24, 30, 0.85)';
+        ctx.strokeStyle = curveColors[key];
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+
+        // Draw inner dot
+        ctx.beginPath();
+        ctx.arc(hX, hY, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = curveColors[key];
+        ctx.fill();
+
+        // Text labels for control points
+        ctx.font = '9px "IBM Plex Mono", monospace';
+        ctx.fillStyle = curveColors[key];
+        ctx.fillText(`P${idx}`, hX + 11, hY + 3);
+      });
+
+      // Draw active curve label text on the canvas
+      ctx.fillStyle = curveColors[key];
+      ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+      ctx.fillText(`★ Active: ${curveLabel[key]}`, 15, h - 15);
+    }
+  });
+}
+
 function drawSpectralImage(image, maxHarm) {
   lastVizImage = image; lastVizMaxHarm = maxHarm;
   const canvas = document.getElementById('spectralCanvas');
@@ -1485,6 +1643,9 @@ function drawSpectralImage(image, maxHarm) {
     }
   }
   ctx.putImageData(imgData, 0, 0);
+
+  // Overlay the active Bezier curves and control point handles
+  drawBezierCurves(ctx, w, h);
 }
 function renderProgressionStrip(chords) {
   const strip = document.getElementById('progressionStrip');
@@ -2039,6 +2200,117 @@ NOTE_NAMES.forEach((n, i) => { const o = document.createElement('option'); o.val
 function mapAttackSec(v) { return lerp(0.005, 0.9, v); }
 function mapReleaseSec(v) { return lerp(0.05, 2.2, v); }
 
+// Interactive Tonal Spectral Painting Event Listeners & Drag Handling
+const paintCheckbox = $('paintEnableCheckbox');
+const activeCurveSelect = $('activeCurveSelect');
+const resetCurveBtn = $('resetActiveCurveBtn');
+const clearCurvesBtn = $('clearAllCurvesBtn');
+const attractStrengthSlider = $('attractStrengthSlider');
+const attractStrengthVal = $('attractStrengthVal');
+const specCanvas = $('spectralCanvas');
+
+paintCheckbox.addEventListener('change', () => {
+  paintEnabled = paintCheckbox.checked;
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+activeCurveSelect.addEventListener('change', () => {
+  activeCurveType = activeCurveSelect.value;
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+attractStrengthSlider.addEventListener('input', () => {
+  attractStrength = parseFloat(attractStrengthSlider.value);
+  attractStrengthVal.textContent = attractStrength.toFixed(2);
+});
+
+resetCurveBtn.addEventListener('click', () => {
+  const defaults = {
+    attractor: 0.5,
+    lowLimit: 0.0,
+    highLimit: 1.0
+  };
+  const targetY = defaults[activeCurveType];
+  curves[activeCurveType] = [
+    { x: 0.0, y: targetY },
+    { x: 0.33, y: targetY },
+    { x: 0.67, y: targetY },
+    { x: 1.0, y: targetY }
+  ];
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+clearCurvesBtn.addEventListener('click', () => {
+  curves.attractor = [
+    { x: 0.0, y: 0.5 }, { x: 0.33, y: 0.5 }, { x: 0.67, y: 0.5 }, { x: 1.0, y: 0.5 }
+  ];
+  curves.lowLimit = [
+    { x: 0.0, y: 0.0 }, { x: 0.33, y: 0.0 }, { x: 0.67, y: 0.0 }, { x: 1.0, y: 0.0 }
+  ];
+  curves.highLimit = [
+    { x: 0.0, y: 1.0 }, { x: 0.33, y: 1.0 }, { x: 0.67, y: 1.0 }, { x: 1.0, y: 1.0 }
+  ];
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+// Drag and drop control handles on the canvas
+let draggedPointIdx = -1;
+const clickRadius = 15;
+
+specCanvas.addEventListener('mousedown', (e) => {
+  if (!paintEnabled) return;
+  const rect = specCanvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+
+  const activePts = curves[activeCurveType];
+  let bestDist = Infinity;
+  let bestIdx = -1;
+
+  activePts.forEach((pt, idx) => {
+    const hX = pt.x * rect.width;
+    const hY = (1 - pt.y) * rect.height;
+    const dist = Math.hypot(cx - hX, cy - hY);
+    if (dist < clickRadius && dist < bestDist) {
+      bestDist = dist;
+      bestIdx = idx;
+    }
+  });
+
+  if (bestIdx !== -1) {
+    draggedPointIdx = bestIdx;
+    e.preventDefault();
+  }
+});
+
+specCanvas.addEventListener('mousemove', (e) => {
+  if (!paintEnabled || draggedPointIdx === -1) return;
+  const rect = specCanvas.getBoundingClientRect();
+  const normX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+  const normY = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+
+  const activePts = curves[activeCurveType];
+
+  // Update Y coordinate
+  activePts[draggedPointIdx].y = normY;
+
+  // Update horizontal X only for intermediate handles P1 and P2
+  if (draggedPointIdx === 1) {
+    activePts[1].x = clamp(normX, 0.05, activePts[2].x - 0.05);
+  } else if (draggedPointIdx === 2) {
+    activePts[2].x = clamp(normX, activePts[1].x + 0.05, 0.95);
+  }
+
+  // Live visual updates during drag
+  if (lastVizImage) {
+    drawSpectralImage(lastVizImage, lastVizMaxHarm);
+  }
+});
+
+const stopDragging = () => { draggedPointIdx = -1; };
+specCanvas.addEventListener('mouseup', stopDragging);
+specCanvas.addEventListener('mouseleave', stopDragging);
+
 document.querySelectorAll('input[type=range]').forEach(el => {
   if (el.id === 'attackSlider' || el.id === 'releaseSlider') return;
   el.addEventListener('input', () => {
@@ -2071,6 +2343,10 @@ window.addEventListener('resize', () => {
 function readParams() {
   const edo = tuningSelect.value === 'custom' ? clamp(parseInt(customEdoInput.value) || 12, 5, 72) : parseInt(tuningSelect.value);
   return {
+    paintEnabled: paintCheckbox.checked,
+    curves: JSON.parse(JSON.stringify(curves)),
+    attractStrength: parseFloat(attractStrengthSlider.value),
+
     seed: parseInt(seedInput.value) || 0,
     rootPC: parseInt(rootSelect.value),
     mode: modeSelect.value,
