@@ -2758,7 +2758,7 @@ function ensureAudioContext() {
 }
 
 async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx, defaultSeqType) {
-  const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
+  const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo, templateCache } = ctx;
   let i = 0;
   for (const note of notes) {
     const startSample = Math.round(note.startBeat * secPerBeat * sr);
@@ -2766,7 +2766,15 @@ async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx, defaultSeqT
     const f0 = stepsToFreq(note.steps, tonicFreq, edo);
     // Dynamically retrieve formants per-note to support timeline modulation
     const noteFormants = getFormants(p, note.startBeat, secPerBeat);
-    const template = buildHarmonicTemplate(f0, p, sr, noteFormants);
+
+    // Check template cache to optimize rendering performance
+    const cacheKey = `${f0}_${noteFormants.map(f => `${f.freq}_${f.bw}_${f.gain}`).join('|')}`;
+    let template = templateCache ? templateCache.get(cacheKey) : null;
+    if (!template) {
+      template = buildHarmonicTemplate(f0, p, sr, noteFormants);
+      if (templateCache) templateCache.set(cacheKey, template);
+    }
+
     const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
     const image = buildSpectralImage(rng, template, numFrames, p, note.startBeat, secPerBeat);
     const pan = panFn(note);
@@ -2877,7 +2885,7 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const totalFrames = Math.ceil(totalSamples / frameHopSamples) + 1;
   const vizImage = Array.from({ length: totalFrames }, () => new Float32Array(vizMaxHarm + 1));
 
-  const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
+  const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo, templateCache: new Map() };
   const padPans = [-0.55, 0.2, 0.55, -0.15];
 
   onProgress('rendering lead…');
