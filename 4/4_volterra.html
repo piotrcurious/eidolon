@@ -218,33 +218,76 @@
   <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— Volterra Series Generated · harmonic index (↑) × time (→)</span></div>
 
   <!-- Interactive Tonal Spectral Painting Dashboard -->
-  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; background:var(--panel); border:1px solid var(--border); padding:8px 12px; border-radius:5px;">
-    <span style="font-size:11px; font-weight:bold; color:var(--phosphor);">🎨 TONAL SPECTRAL PAINTING:</span>
-    <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
-      <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
-    </label>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
-      <input type="checkbox" id="snapHarmonicCheckbox" style="accent-color:var(--cyan);" checked> Snap to Harmonic Grid
-    </label>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
-    <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
-      <option value="attractor">Tone Attractor (Boost/Draw)</option>
-      <option value="lowLimit">Low Frequency Limit (Filter)</option>
-      <option value="highLimit">High Frequency Limit (Filter)</option>
-    </select>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <button type="button" id="resetActiveCurveBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Reset Active</button>
-    <button type="button" id="clearAllCurvesBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Clear All</button>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
-      Attraction Strength: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:70px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
-    </label>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
-      Canvas Height: <input type="range" id="canvasHeightSlider" min="200" max="1200" step="10" value="800" style="width:90px; height:4px; margin:0;"> <span id="canvasHeightVal" style="color:var(--cyan); font-weight:600;">800px</span>
-    </label>
+  <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; background:var(--panel); border:1px solid var(--border); padding:10px 14px; border-radius:6px;">
+    <!-- Row 1: Active Painting and Curve Selection Controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+      <span style="font-size:11px; font-weight:bold; color:var(--phosphor);">🎨 TONAL SPECTRAL PAINTING:</span>
+      <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
+      </label>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="snapHarmonicCheckbox" style="accent-color:var(--cyan);" checked> Snap to Harmonic Grid
+      </label>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
+      <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="attractor">Tone Attractor (Boost/Draw)</option>
+        <option value="lowLimit">Low Frequency Limit (Filter)</option>
+        <option value="highLimit">High Frequency Limit (Filter)</option>
+      </select>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <button type="button" id="resetActiveCurveBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Reset Active</button>
+      <button type="button" id="clearAllCurvesBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Clear All</button>
+    </div>
+
+    <!-- Row 2: Resolution, Scaling, and Advanced Grid Adjustment Controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
+      <span style="font-size:11px; color:var(--muted);">Max Harmonics:</span>
+      <select id="maxHarmonicsSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="16">16 (Draft)</option>
+        <option value="24" selected>24 (Standard)</option>
+        <option value="32">32 (Enhanced)</option>
+        <option value="48">48 (High Res)</option>
+        <option value="64">64 (Ultra Res)</option>
+        <option value="96">96 (Extreme)</option>
+        <option value="128">128 (Maximum)</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Freq Scaling:</span>
+      <select id="freqScalingSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="linear" selected>Linear (Equal Spacing)</option>
+        <option value="logarithmic">Logarithmic (Perceptual)</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Grid Mode:</span>
+      <select id="gridModeSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="all" selected>All Harmonics</option>
+        <option value="consonant">Consonant Intervals Only</option>
+        <option value="stepAlign">EDO Step Aligned Only</option>
+        <option value="none">No Horizontal Grid</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Time Grid:</span>
+      <select id="timeGridSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="bar" selected>Bar divisions</option>
+        <option value="beat">Beat divisions</option>
+        <option value="none">No Time Grid</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+        Attraction: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:60px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
+      </label>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+        Height: <input type="range" id="canvasHeightSlider" min="200" max="1200" step="10" value="800" style="width:80px; height:4px; margin:0;"> <span id="canvasHeightVal" style="color:var(--cyan); font-weight:600;">800px</span>
+      </label>
+    </div>
   </div>
 
   <canvas id="spectralCanvas"></canvas>
@@ -304,6 +347,19 @@
     <div class="control">
       <label>Tension / chromaticism <span class="val" id="tensionVal">0.18</span></label>
       <input type="range" id="tensionSlider" min="0" max="1" step="0.01" value="0.18">
+    </div>
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+    <div class="control">
+      <label>Preceding Input Chord (Outside)</label>
+      <select id="inputChordSelect" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none">None (Default Tonic Start)</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Succeeding Output Chord (Next Outside)</label>
+      <select id="outputChordSelect" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none">None (Default Tonic End)</option>
+      </select>
     </div>
   </div>
 
@@ -582,6 +638,55 @@ class RNG {
 function lerp(a, b, t) { return a + (b - a) * t; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
+function getNormYForHarmBound(kBound, maxHarm, scaling) {
+  if (scaling === 'logarithmic') {
+    const logMin = Math.log(0.5);
+    const logMax = Math.log(maxHarm + 0.5);
+    return (Math.log(kBound) - logMin) / (logMax - logMin);
+  }
+  return (kBound - 0.5) / maxHarm;
+}
+
+function getHarmBoundFromNormY(normY, maxHarm, scaling) {
+  if (scaling === 'logarithmic') {
+    const logMin = Math.log(0.5);
+    const logMax = Math.log(maxHarm + 0.5);
+    const logVal = logMin + normY * (logMax - logMin);
+    return Math.exp(logVal);
+  }
+  return 0.5 + normY * maxHarm;
+}
+
+function updateExternalChordsSelects(states) {
+  const inputSel = document.getElementById('inputChordSelect');
+  const outputSel = document.getElementById('outputChordSelect');
+  if (!inputSel || !outputSel) return;
+  const savedInputVal = inputSel.value;
+  const savedOutputVal = outputSel.value;
+
+  inputSel.innerHTML = '<option value="none">None (Default Tonic Start)</option>';
+  outputSel.innerHTML = '<option value="none">None (Default Tonic End)</option>';
+
+  states.forEach((st, idx) => {
+    const optIn = document.createElement('option');
+    optIn.value = idx;
+    optIn.textContent = `${idx + 1}: ${st.name}`;
+    inputSel.appendChild(optIn);
+
+    const optOut = document.createElement('option');
+    optOut.value = idx;
+    optOut.textContent = `${idx + 1}: ${st.name}`;
+    outputSel.appendChild(optOut);
+  });
+
+  if ([...inputSel.options].some(o => o.value === savedInputVal)) {
+    inputSel.value = savedInputVal;
+  }
+  if ([...outputSel.options].some(o => o.value === savedOutputVal)) {
+    outputSel.value = savedOutputVal;
+  }
+}
+
 function evaluateBezier(x, p0, p1, p2, p3) {
   let low = 0, high = 1;
   for (let i = 0; i < 12; i++) {
@@ -843,10 +948,20 @@ function resolveChordRootSteps(stateIdx, states, tuning) {
   return tuning.scale[st.degree] + (st.chromaticShift || 0) * tuning.smallStep;
 }
 
-function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap) {
+function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap, inputChordIdx, outputChordIdx) {
   const n = matrices.size;
   const seq = new Array(numChords);
-  seq[0] = (lockedMap && lockedMap[0] !== undefined) ? lockedMap[0] : 0;
+
+  if (lockedMap && lockedMap[0] !== undefined) {
+    seq[0] = lockedMap[0];
+  } else if (inputChordIdx !== undefined && inputChordIdx !== null && inputChordIdx !== 'none') {
+    const startIdx = parseInt(inputChordIdx);
+    const row = new Float64Array(n);
+    for (let j = 0; j < n; j++) row[j] = (1 - tension) * matrices.consonant[startIdx][j] + tension * matrices.chromatic[startIdx][j];
+    seq[0] = rng.weightedIndex(row);
+  } else {
+    seq[0] = 0;
+  }
 
   intermediateLog.progression = [];
   intermediateLog.progression.push({
@@ -883,11 +998,34 @@ function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap
     });
   }
   if (numChords > 1 && !(lockedMap && lockedMap[numChords - 1] !== undefined)) {
-    seq[numChords - 1] = 0;
-    const lastLog = intermediateLog.progression[numChords - 1];
-    if (lastLog) {
-      lastLog.forcedTonic = true;
-      lastLog.selectedIndex = 0;
+    if (outputChordIdx !== undefined && outputChordIdx !== null && outputChordIdx !== 'none') {
+      const prev = seq[numChords - 2];
+      const target = parseInt(outputChordIdx);
+      const row = new Float64Array(n);
+      let sum = 0;
+      for (let k = 0; k < n; k++) {
+        const transFromPrev = (1 - tension) * matrices.consonant[prev][k] + tension * matrices.chromatic[prev][k];
+        const transToTarget = (1 - tension) * matrices.consonant[k][target] + tension * matrices.chromatic[k][target];
+        row[k] = transFromPrev * transToTarget;
+        sum += row[k];
+      }
+      if (sum > 0) {
+        seq[numChords - 1] = rng.weightedIndex(row);
+        const lastLog = intermediateLog.progression[numChords - 1];
+        if (lastLog) {
+          lastLog.selectedIndex = seq[numChords - 1];
+          lastLog.forcedTonic = false;
+        }
+      } else {
+        seq[numChords - 1] = 0;
+      }
+    } else {
+      seq[numChords - 1] = 0;
+      const lastLog = intermediateLog.progression[numChords - 1];
+      if (lastLog) {
+        lastLog.forcedTonic = true;
+        lastLog.selectedIndex = 0;
+      }
     }
   }
   return seq;
@@ -1582,6 +1720,9 @@ function drawBezierCurves(ctx, w, h) {
     highLimit: 'High Frequency Limit'
   };
 
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
   Object.keys(curves).forEach(key => {
     const pts = curves[key];
     const isActive = (key === activeCurveType);
@@ -1589,30 +1730,34 @@ function drawBezierCurves(ctx, w, h) {
     ctx.setLineDash(isActive ? [] : [4, 4]);
     ctx.strokeStyle = curveColors[key];
 
-    // Draw Bezier line
+    // Plot the curve with steps to handle frequency scaling cleanly
     ctx.beginPath();
-    const startX = pts[0].x * w;
-    const startY = (1 - pts[0].y) * h;
-    ctx.moveTo(startX, startY);
+    const plotSteps = 200;
+    for (let s = 0; s <= plotSteps; s++) {
+      const xRatio = s / plotSteps;
+      const xVal = xRatio * w;
+      const yNorm = evaluateBezier(xRatio, pts[0], pts[1], pts[2], pts[3]);
 
-    const cp1X = pts[1].x * w;
-    const cp1Y = (1 - pts[1].y) * h;
-    const cp2X = pts[2].x * w;
-    const cp2Y = (1 - pts[2].y) * h;
-    const endX = pts[3].x * w;
-    const endY = (1 - pts[3].y) * h;
+      const kVal = 1 + yNorm * (maxHarm - 1);
+      const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+      const yVal = h - normYPixel * h;
 
-    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+      if (s === 0) {
+        ctx.moveTo(xVal, yVal);
+      } else {
+        ctx.lineTo(xVal, yVal);
+      }
+    }
     ctx.stroke();
 
-    // Draw handles / control points for the active curve
     if (isActive) {
       ctx.setLineDash([]);
       pts.forEach((pt, idx) => {
         const hX = pt.x * w;
-        const hY = (1 - pt.y) * h;
+        const kVal = 1 + pt.y * (maxHarm - 1);
+        const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+        const hY = h - normYPixel * h;
 
-        // Draw outer halo
         ctx.beginPath();
         ctx.arc(hX, hY, 8, 0, 2 * Math.PI);
         ctx.fillStyle = 'rgba(20, 24, 30, 0.85)';
@@ -1621,19 +1766,16 @@ function drawBezierCurves(ctx, w, h) {
         ctx.fill();
         ctx.stroke();
 
-        // Draw inner dot
         ctx.beginPath();
         ctx.arc(hX, hY, 3, 0, 2 * Math.PI);
         ctx.fillStyle = curveColors[key];
         ctx.fill();
 
-        // Text labels for control points
         ctx.font = '9px "IBM Plex Mono", monospace';
         ctx.fillStyle = curveColors[key];
         ctx.fillText(`P${idx}`, hX + 11, hY + 3);
       });
 
-      // Draw active curve label text on the canvas
       ctx.fillStyle = curveColors[key];
       ctx.font = 'bold 10px "IBM Plex Mono", monospace';
       ctx.fillText(`★ Active: ${curveLabel[key]}`, 15, h - 15);
@@ -1648,12 +1790,12 @@ function drawSpectralImage(image, maxHarm) {
   // Dynamic height adjustment to make editor larger (e.g. 800px)
   const dpr = window.devicePixelRatio || 1;
   const requestedHeight = parseFloat(document.getElementById('canvasHeightSlider').value) || 800;
-  const rowH = requestedHeight / maxHarm;
 
   const cssWidth = canvas.clientWidth || (canvas.parentElement && canvas.parentElement.clientWidth) || 900;
   const displayW = clamp(Math.round(cssWidth * dpr), 200, 2200);
   const agg = aggregateImageForDisplay(image, displayW, maxHarm);
-  const w = displayW, h = Math.round(maxHarm * rowH * dpr);
+  const w = displayW;
+  const h = Math.round(requestedHeight * dpr);
   canvas.width = w; canvas.height = h;
   canvas.style.height = requestedHeight + 'px';
 
@@ -1661,17 +1803,21 @@ function drawSpectralImage(image, maxHarm) {
   const maxVal = percentileMax(agg, maxHarm, 0.97);
   const imgData = ctx.createImageData(w, h);
 
-  // Render Spectrogram grid elements
-  const rowH_dpr = rowH * dpr;
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+
   for (let x = 0; x < w; x++) {
     const col = agg[x];
     for (let k = 1; k <= maxHarm; k++) {
       const v = clamp(col[k] / maxVal, 0, 1);
       const [r, g, b] = spectralColormap(v);
-      const yTop = Math.round(h - k * rowH_dpr);
-      const rowHeight_rounded = Math.round(rowH_dpr);
-      for (let ry = 0; ry < rowHeight_rounded; ry++) {
-        const currY = yTop + ry;
+
+      const normYBottom = getNormYForHarmBound(k - 0.5, maxHarm, scaling);
+      const normYTop = getNormYForHarmBound(k + 0.5, maxHarm, scaling);
+
+      const yBottomPixel = Math.round(h - normYBottom * h);
+      const yTopPixel = Math.round(h - normYTop * h);
+
+      for (let currY = yTopPixel; currY < yBottomPixel; currY++) {
         if (currY < 0 || currY >= h) continue;
         const idx = (currY * w + x) * 4;
         imgData.data[idx] = r; imgData.data[idx + 1] = g; imgData.data[idx + 2] = b; imgData.data[idx + 3] = 255;
@@ -1682,56 +1828,75 @@ function drawSpectralImage(image, maxHarm) {
 
   // Draw Horizontal and Vertical Quantization Grid lines matching EDO scale
   if (paintEnabled) {
-    ctx.setLineDash([3, 5]);
-    ctx.lineWidth = 1;
+    const gridMode = document.getElementById('gridModeSelect').value || 'all';
+    if (gridMode !== 'none') {
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
 
-    for (let k = 1; k <= maxHarm; k++) {
-      const yVal = h - (k - 0.5) * rowH_dpr;
+      for (let k = 1; k <= maxHarm; k++) {
+        if (gridMode === 'consonant') {
+          const isConsonant = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16].includes(k);
+          if (!isConsonant) continue;
+        } else if (gridMode === 'stepAlign') {
+          const edo = currentTuning ? currentTuning.edo : 12;
+          const rawSteps = edo * Math.log2(k);
+          const roundedSteps = Math.round(rawSteps);
+          const centsDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+          if (Math.abs(centsDev) > 15) continue;
+        }
 
-      // Draw horizontal line
-      ctx.strokeStyle = 'rgba(82, 214, 198, 0.18)'; // Faint Cyan
-      ctx.beginPath();
-      ctx.moveTo(0, yVal);
-      ctx.lineTo(w, yVal);
-      ctx.stroke();
+        const normYMid = getNormYForHarmBound(k, maxHarm, scaling);
+        const yVal = h - normYMid * h;
 
-      // Microtonal EDO scale interval computations
-      const edo = currentTuning ? currentTuning.edo : 12;
-      const rawSteps = edo * Math.log2(k);
-      const roundedSteps = Math.round(rawSteps);
-      const centDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
-      const centSign = centDev >= 0 ? `+${centDev}` : `${centDev}`;
-      const devString = Math.abs(centDev) > 3 ? ` (${centSign}¢)` : '';
+        ctx.strokeStyle = 'rgba(82, 214, 198, 0.18)'; // Faint Cyan
+        ctx.beginPath();
+        ctx.moveTo(0, yVal);
+        ctx.lineTo(w, yVal);
+        ctx.stroke();
 
-      let noteLabel = `H${k}`;
-      if (k === 1) noteLabel += ' [Root]';
-      else if (k === 2) noteLabel += ' [Octave]';
-      else if (k === 3) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
-      else if (k === 4) noteLabel += ' [Double Octave]';
-      else if (k === 5) noteLabel += ` [Third / step ${roundedSteps}${devString}]`;
-      else if (k === 6) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
-      else if (k === 8) noteLabel += ' [Triple Octave]';
-      else noteLabel += ` [step ${roundedSteps}${devString}]`;
+        const edo = currentTuning ? currentTuning.edo : 12;
+        const rawSteps = edo * Math.log2(k);
+        const roundedSteps = Math.round(rawSteps);
+        const centDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+        const centSign = centDev >= 0 ? `+${centDev}` : `${centDev}`;
+        const devString = Math.abs(centDev) > 3 ? ` (${centSign}¢)` : '';
 
-      ctx.fillStyle = 'rgba(82, 214, 198, 0.55)';
-      ctx.font = '10px "IBM Plex Mono", monospace';
-      ctx.fillText(noteLabel, 12, yVal - 3);
+        let noteLabel = `H${k}`;
+        if (k === 1) noteLabel += ' [Root]';
+        else if (k === 2) noteLabel += ' [Octave]';
+        else if (k === 3) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+        else if (k === 4) noteLabel += ' [Double Octave]';
+        else if (k === 5) noteLabel += ` [Third / step ${roundedSteps}${devString}]`;
+        else if (k === 6) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+        else if (k === 8) noteLabel += ' [Triple Octave]';
+        else noteLabel += ` [step ${roundedSteps}${devString}]`;
+
+        ctx.fillStyle = 'rgba(82, 214, 198, 0.55)';
+        ctx.font = '10px "IBM Plex Mono", monospace';
+        ctx.fillText(noteLabel, 12, yVal - 3);
+      }
     }
 
     // Draw Vertical Bar division lines
-    ctx.strokeStyle = 'rgba(232, 163, 61, 0.15)'; // Faint Amber
-    const barsCount = lastFullParams ? lastFullParams.bars : 8;
-    for (let bar = 0; bar <= barsCount; bar++) {
-      const xVal = (bar / barsCount) * w;
-      ctx.beginPath();
-      ctx.moveTo(xVal, 0);
-      ctx.lineTo(xVal, h);
-      ctx.stroke();
+    const timeGrid = document.getElementById('timeGridSelect').value || 'bar';
+    if (timeGrid !== 'none') {
+      ctx.strokeStyle = 'rgba(232, 163, 61, 0.15)'; // Faint Amber
+      const barsCount = lastFullParams ? lastFullParams.bars : 8;
+      const subdivs = (timeGrid === 'beat') ? barsCount * 4 : barsCount;
+      const labelPrefix = (timeGrid === 'beat') ? 'Beat' : 'Bar';
 
-      if (bar < barsCount) {
-        ctx.fillStyle = 'rgba(232, 163, 61, 0.45)';
-        ctx.font = 'bold 10px "IBM Plex Mono", monospace';
-        ctx.fillText(`Bar ${bar + 1}`, xVal + 8, h - 8);
+      for (let i = 0; i <= subdivs; i++) {
+        const xVal = (i / subdivs) * w;
+        ctx.beginPath();
+        ctx.moveTo(xVal, 0);
+        ctx.lineTo(xVal, h);
+        ctx.stroke();
+
+        if (i < subdivs) {
+          ctx.fillStyle = 'rgba(232, 163, 61, 0.45)';
+          ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+          ctx.fillText(`${labelPrefix} ${i + 1}`, xVal + 8, h - 8);
+        }
       }
     }
   }
@@ -2351,13 +2516,19 @@ specCanvas.addEventListener('mousedown', (e) => {
   const cx = e.clientX - rect.left;
   const cy = e.clientY - rect.top;
 
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
   const activePts = curves[activeCurveType];
   let bestDist = Infinity;
   let bestIdx = -1;
 
   activePts.forEach((pt, idx) => {
     const hX = pt.x * rect.width;
-    const hY = (1 - pt.y) * rect.height;
+    const kVal = 1 + pt.y * (maxHarm - 1);
+    const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+    const hY = rect.height - normYPixel * rect.height;
+
     const dist = Math.hypot(cx - hX, cy - hY);
     if (dist < clickRadius && dist < bestDist) {
       bestDist = dist;
@@ -2385,28 +2556,30 @@ specCanvas.addEventListener('mousemove', (e) => {
   if (!paintEnabled || draggedPointIdx === -1) return;
   const rect = specCanvas.getBoundingClientRect();
   const normX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-  const normY = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+  const normYCanvas = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
+  const kVal = getHarmBoundFromNormY(normYCanvas, maxHarm, scaling);
+  const logicalY = (kVal - 1) / (maxHarm - 1);
 
   const activePts = curves[activeCurveType];
 
-  // Snapping/quantization grid constraint matching the active tonal scale harmonics:
   const shouldSnap = $('snapHarmonicCheckbox').checked;
   if (shouldSnap) {
-    const totalH = lastVizMaxHarm || 24;
-    const kNearest = Math.round(1 + normY * (totalH - 1));
-    activePts[draggedPointIdx].y = clamp((kNearest - 1) / (totalH - 1), 0, 1);
+    const kNearest = clamp(Math.round(kVal), 1, maxHarm);
+    activePts[draggedPointIdx].y = clamp((kNearest - 1) / (maxHarm - 1), 0, 1);
   } else {
-    activePts[draggedPointIdx].y = normY;
+    activePts[draggedPointIdx].y = clamp(logicalY, 0, 1);
   }
 
-  // Update horizontal X only for intermediate handles P1 and P2
   if (draggedPointIdx === 1) {
     activePts[1].x = clamp(normX, 0.05, activePts[2].x - 0.05);
   } else if (draggedPointIdx === 2) {
     activePts[2].x = clamp(normX, activePts[1].x + 0.05, 0.95);
   }
 
-  // Live visual updates during drag
   if (lastVizImage) {
     drawSpectralImage(lastVizImage, lastVizMaxHarm);
   }
@@ -2456,6 +2629,14 @@ function readParams() {
     paintEnabled: paintCheckbox.checked,
     curves: JSON.parse(JSON.stringify(curves)),
     attractStrength: parseFloat(attractStrengthSlider.value),
+
+    // Dynamic dashboard choices
+    maxHarmonics: parseInt(document.getElementById('maxHarmonicsSelect').value) || 24,
+    freqScaling: document.getElementById('freqScalingSelect').value || 'linear',
+    gridMode: document.getElementById('gridModeSelect').value || 'all',
+    timeGrid: document.getElementById('timeGridSelect').value || 'bar',
+    inputChord: document.getElementById('inputChordSelect').value || 'none',
+    outputChord: document.getElementById('outputChordSelect').value || 'none',
 
     seed: parseInt(seedInput.value) || 0,
     rootPC: parseInt(rootSelect.value),
@@ -2574,6 +2755,9 @@ function buildTheoryContext(p) {
   const consonantBase = p.mode === 'major' ? MAJOR_CONSONANT_BASE : MINOR_CONSONANT_BASE;
   const states = buildStateList(baseDefs, secondaryTargets, p.jazzEnabled);
   const matrices = buildProgressionMatrices(consonantBase, 9, secondaryTargets, p.jazzEnabled, p.secDomWeight);
+
+  updateExternalChordsSelects(states);
+
   return { tuning, states, matrices };
 }
 
@@ -2585,7 +2769,7 @@ async function doGenerate(p, onProgress) {
   const { tuning, states, matrices } = buildTheoryContext(p);
   currentStates = states; currentTuning = tuning; currentMatrices = matrices;
 
-  const stateIndices = generateProgressionIndices(progressionRng, matrices, p.tension, p.bars, lockedSlots);
+  const stateIndices = generateProgressionIndices(progressionRng, matrices, p.tension, p.bars, lockedSlots, p.inputChord, p.outputChord);
   const chords = resolveChords(stateIndices, states, tuning, progressionRng, { enabled: p.jazzEnabled, tritoneSubChance: p.tritoneSubChance, extensionDensity: p.extensionDensity });
   currentStateIndices = stateIndices; currentChords = chords;
   lastFullParams = p;
@@ -2630,7 +2814,7 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const FRAME_HOP_SEC = p.frameHopSec || 0.025;
   const frameHopSamples = Math.max(1, Math.round(FRAME_HOP_SEC * sr));
 
-  const vizMaxHarm = 24;
+  const vizMaxHarm = p.maxHarmonics || 24;
   const totalFrames = Math.ceil(totalSamples / frameHopSamples) + 1;
   const vizImage = Array.from({ length: totalFrames }, () => new Float32Array(vizMaxHarm + 1));
 
@@ -2743,6 +2927,13 @@ $('updateFromNoteEditorBtn').addEventListener('click', async () => {
     generateBtn.disabled = false;
   }
 });
+$('maxHarmonicsSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('freqScalingSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('gridModeSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('timeGridSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('inputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('outputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+
 playBtn.addEventListener('click', () => { playAudio(); stopBtn.disabled = false; });
 stopBtn.addEventListener('click', () => { stopPlayback(); });
 exportBtn.addEventListener('click', exportWav);
