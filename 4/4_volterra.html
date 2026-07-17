@@ -418,6 +418,39 @@
       <label>Rhythmic density <span class="val" id="densityVal">0.50</span></label>
       <input type="range" id="densitySlider" min="0" max="1" step="0.01" value="0.50">
     </div>
+
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+
+    <div class="control">
+      <label>Melodic Articulation <span class="val" id="phraseGateVal">0.80</span></label>
+      <input type="range" id="phraseGateSlider" min="0.10" max="1.50" step="0.05" value="0.80">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Staccato (0.1) vs. Legato/Overlapping (1.5).</span>
+    </div>
+
+    <div class="control">
+      <label>Rhythmic Groove</label>
+      <select id="phraseGrooveSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="straight" selected>Straight 16th Notes</option>
+        <option value="swing">Light Swing / Shuffle</option>
+        <option value="triplet">Triplet / Sextuplet Feel</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Ornamentation Prob <span class="val" id="ornamentVal">0.15</span></label>
+      <input type="range" id="ornamentSlider" min="0" max="1" step="0.05" value="0.15">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Trills, grace notes, and rapid double-triggers.</span>
+    </div>
+
+    <div class="control">
+      <label>Motif Development</label>
+      <select id="motifDevSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none" selected>Through-Composed (None)</option>
+        <option value="repeat">Motif Repetition (1 Bar)</option>
+        <option value="transpose">Transposed Repetition</option>
+        <option value="invert">Inverted Call-and-Response</option>
+      </select>
+    </div>
   </div>
 
   <div class="panel">
@@ -1105,6 +1138,9 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
 
   intermediateLog.phrase = [];
 
+  const motif16ths = beatsPerBar * 4;
+  const motifPattern = new Array(motif16ths).fill(null);
+
   for (let step = 0; step < total16ths; step++) {
     const stepIdx = step % 32;
     const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
@@ -1114,64 +1150,98 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       const chordIdx = Math.min(chords.length - 1, Math.floor(beatPos / beatsPerBar));
       const chord = chords[chordIdx];
 
-      const dur16ths = (p.density > 0.7) ? 1 : 2;
-      const durBeats = (dur16ths * 0.25) * 0.92;
-
-      let candidateSteps = [];
-
-      // Influence candidate steps based on ARPEGG master cue layer (forces chord tone arpeggiation)
-      const forceArpegg = p.drumCues && p.drumCues.arpegg && p.drumCues.arpegg[stepIdx];
-      const isAnchorBeat = p.drumCues && p.drumCues.m_anch && p.drumCues.m_anch[stepIdx];
-
-      if (p.tonalDistribution === 'chord_tones' || forceArpegg || isAnchorBeat) {
-        candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
-      } else if (p.tonalDistribution === 'pentatonic') {
-        const pent = getPentatonicSteps(tuning);
-        candidateSteps = pent.map(steps => chord.rootSteps + steps);
-      } else if (p.tonalDistribution === 'chromatic') {
-        const base = tuning.scale.map(steps => chord.rootSteps + steps);
-        const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
-        candidateSteps = base.concat(chromaticShifts);
-      } else {
-        candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+      let timingOffset = 0;
+      if (p.phraseGroove === 'swing' && (step % 2 === 1)) {
+        timingOffset = 1.0 / 24.0;
+      } else if (p.phraseGroove === 'triplet') {
+        const substep = step % 4;
+        if (substep === 1) timingOffset = -1.0 / 24.0;
+        else if (substep === 3) timingOffset = 1.0 / 24.0;
       }
 
-      if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
+      const dur16ths = (p.density > 0.7) ? 1 : 2;
+      const baseDur = dur16ths * 0.25;
+      const durBeats = baseDur * (p.phraseGate !== undefined ? p.phraseGate : 0.80);
 
-      let bestCandidate = candidateSteps[0];
-      let candidateWeights = null;
-      let chosenIdx = -1;
+      const motifStep = step % motif16ths;
+      let forceMotifValue = null;
+      let isMotifActive = p.motifDev !== 'none' && step >= motif16ths;
 
-      if (isFirstNote) {
-        chosenIdx = Math.floor(rng.next() * candidateSteps.length);
-        bestCandidate = candidateSteps[chosenIdx];
-        isFirstNote = false;
-      } else {
-        const weights = new Float64Array(candidateSteps.length);
-        for (let i = 0; i < candidateSteps.length; i++) {
-          const cand = candidateSteps[i];
-          const distSteps = Math.abs(cand - lastPitchSteps);
-
-          // If ARPEGG cue is active, we heavily bias towards skip/arpeggiation steps (disjunct skips)
-          // If PASSING cue is active, we heavily bias towards stepwise scale movement (conjunct)
-          let biasScalar = p.motionBias;
-          if (forceArpegg) biasScalar = 0.9;
-          else if (p.drumCues && p.drumCues.passing && p.drumCues.passing[stepIdx]) biasScalar = 0.1;
-
-          const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, biasScalar) * tuning.smallStep));
-
-          let dirAffinity = 1.0;
-          if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
-            dirAffinity = 1.0 + p.dirTrend * 3.0;
-          } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
-            dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
-          }
-
-          weights[i] = stepAffinity * dirAffinity;
+      if (isMotifActive && motifPattern[motifStep] !== null) {
+        const rawSaved = motifPattern[motifStep];
+        if (p.motifDev === 'repeat') {
+          forceMotifValue = rawSaved;
+        } else if (p.motifDev === 'transpose') {
+          forceMotifValue = rawSaved + tuning.smallStep * 2;
+        } else if (p.motifDev === 'invert') {
+          forceMotifValue = -rawSaved;
         }
-        chosenIdx = rng.weightedIndex(weights);
-        bestCandidate = candidateSteps[chosenIdx];
-        candidateWeights = Array.from(weights);
+      }
+
+      let bestCandidate;
+      let candidateSteps = [];
+      let chosenIdx = -1;
+      let candidateWeights = null;
+
+      if (forceMotifValue !== null) {
+        bestCandidate = chord.rootSteps + forceMotifValue;
+      } else {
+        const forceArpegg = p.drumCues && p.drumCues.arpegg && p.drumCues.arpegg[stepIdx];
+        const isAnchorBeat = p.drumCues && p.drumCues.m_anch && p.drumCues.m_anch[stepIdx];
+
+        if (p.tonalDistribution === 'chord_tones' || forceArpegg || isAnchorBeat) {
+          candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
+        } else if (p.tonalDistribution === 'pentatonic') {
+          const pent = getPentatonicSteps(tuning);
+          candidateSteps = pent.map(steps => chord.rootSteps + steps);
+        } else if (p.tonalDistribution === 'chromatic') {
+          const base = tuning.scale.map(steps => chord.rootSteps + steps);
+          const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
+          candidateSteps = base.concat(chromaticShifts);
+        } else {
+          candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+        }
+
+        if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
+
+        if (isFirstNote) {
+          chosenIdx = Math.floor(rng.next() * candidateSteps.length);
+          bestCandidate = candidateSteps[chosenIdx];
+          isFirstNote = false;
+        } else {
+          const weights = new Float64Array(candidateSteps.length);
+          for (let i = 0; i < candidateSteps.length; i++) {
+            const cand = candidateSteps[i];
+            const distSteps = Math.abs(cand - lastPitchSteps);
+
+            let biasScalar = p.motionBias;
+            if (forceArpegg) biasScalar = 0.9;
+            else if (p.drumCues && p.drumCues.passing && p.drumCues.passing[stepIdx]) biasScalar = 0.1;
+
+            const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, biasScalar) * tuning.smallStep));
+
+            let leapPenalty = 1.0;
+            if (distSteps > tuning.largeStep && rng.next() > p.leapProbability) {
+              leapPenalty = 0.15;
+            }
+
+            let dirAffinity = 1.0;
+            if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
+              dirAffinity = 1.0 + p.dirTrend * 3.0;
+            } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
+              dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
+            }
+
+            weights[i] = stepAffinity * dirAffinity * leapPenalty;
+          }
+          chosenIdx = rng.weightedIndex(weights);
+          bestCandidate = candidateSteps[chosenIdx];
+          candidateWeights = Array.from(weights);
+        }
+
+        if (step < motif16ths) {
+          motifPattern[step] = bestCandidate - chord.rootSteps;
+        }
       }
 
       lastPitchSteps = bestCandidate;
@@ -1182,11 +1252,24 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       const absoluteOctave = baseOct + driftOffset;
       const finalSteps = absoluteOctave * tuning.edo + bestCandidate;
 
-      // Log the generation decision
+      const trillOrGraceProb = p.ornamentProb !== undefined ? p.ornamentProb : 0.15;
+      const triggerOrnament = rng.next() < trillOrGraceProb;
+
+      if (triggerOrnament && !isFirstNote) {
+        const graceSteps = absoluteOctave * tuning.edo + lastPitchSteps;
+        notes.push({
+          startBeat: Math.max(0, beatPos + timingOffset - 0.05),
+          durBeats: 0.04,
+          steps: graceSteps,
+          seqType: 'phrase',
+          stepIdx: stepIdx
+        });
+      }
+
       intermediateLog.phrase.push({
         step: step,
         stepIdx: stepIdx,
-        beatPos: beatPos,
+        beatPos: beatPos + timingOffset,
         chordName: chord.name,
         candidateSteps: Array.from(candidateSteps),
         candidateWeights: candidateWeights,
@@ -1197,7 +1280,7 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       });
 
       notes.push({
-        startBeat: beatPos,
+        startBeat: beatPos + timingOffset,
         durBeats: durBeats,
         steps: finalSteps,
         seqType: 'phrase',
@@ -1933,6 +2016,7 @@ const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlide
 
 // Panel 2 Phrase controls
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
+const phraseGateSlider = $('phraseGateSlider'), ornamentSlider = $('ornamentSlider');
 const phraseTonalDistributionSelect = $('phraseTonalDistributionSelect');
 const octaveBaseSlider = $('octaveBaseSlider'), octaveDriftSlider = $('octaveDriftSlider');
 const motionBiasSlider = $('motionBiasSlider'), dirTrendSlider = $('dirTrendSlider');
@@ -2650,6 +2734,10 @@ function readParams() {
     bars: parseInt(barsSlider.value),
     tension: parseFloat(tensionSlider.value),
     leapProbability: parseFloat(leapSlider.value),
+    phraseGate: parseFloat(document.getElementById('phraseGateSlider').value) || 0.80,
+    phraseGroove: document.getElementById('phraseGrooveSelect').value || 'straight',
+    ornamentProb: parseFloat(document.getElementById('ornamentSlider').value) || 0.15,
+    motifDev: document.getElementById('motifDevSelect').value || 'none',
     density: parseFloat(densitySlider.value),
 
     // Advanced Phrase generator hyperparameters
@@ -2933,6 +3021,8 @@ $('gridModeSelect').addEventListener('change', () => { if (lastVizImage) drawSpe
 $('timeGridSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
 $('inputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
 $('outputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('phraseGrooveSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('motifDevSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
 
 playBtn.addEventListener('click', () => { playAudio(); stopBtn.disabled = false; });
 stopBtn.addEventListener('click', () => { stopPlayback(); });
