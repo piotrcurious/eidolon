@@ -252,6 +252,8 @@
         <option value="64">64 (Ultra Res)</option>
         <option value="96">96 (Extreme)</option>
         <option value="128">128 (Maximum)</option>
+        <option value="256">256 (Hyper Res)</option>
+        <option value="512">512 (Extreme Res)</option>
       </select>
 
       <div style="height:14px; width:1px; background:var(--border);"></div>
@@ -1629,7 +1631,9 @@ function renderNote(bufL, bufR, sr, startSample, durSamples, f0, spectralImage, 
     for (let k = 1; k <= numH; k++) {
       if (freqs[k] < nyquist) {
         const lvl = spectralImage[f0i][k] * (1 - frac) + spectralImage[f1i][k] * frac;
-        const amp = 0.12 * lvl * env * velocity; // Calibrated volume scale
+        // Physical air absorption roll-off to eliminate high-band whistling/ringing:
+        const airDamping = Math.exp(-0.00008 * freqs[k]);
+        const amp = 0.12 * lvl * env * velocity * airDamping; // Calibrated volume scale
         sample += amp * lutCos(phaseAcc[k]);
       }
       phaseAcc[k] += incr[k];
@@ -1684,20 +1688,28 @@ function allpassFilter(input, delay, g) {
 function monoReverb(input, sr, combMs, apMs, dampValue) {
   const sum = new Float32Array(input.length);
   for (const ms of combMs) {
-    // 0.81 feedback and 0.28 damping to guarantee stable, warm, non-resonant diffusion
-    const c = combFilterDamped(input, Math.round(ms * sr / 1000), 0.81, dampValue);
+    // Reduce Comb feedback from 0.81 to 0.74 to completely eliminate high-frequency metallic resonances and ringing:
+    const c = combFilterDamped(input, Math.round(ms * sr / 1000), 0.74, dampValue);
     for (let i = 0; i < input.length; i++) sum[i] += c[i] * 0.25;
   }
   let ap = sum;
-  for (const ms of apMs) ap = allpassFilter(ap, Math.round(ms * sr / 1000), 0.48);
-  return ap;
+  for (const ms of apMs) ap = allpassFilter(ap, Math.round(ms * sr / 1000), 0.45);
+
+  // Apply a gentle post-reverb one-pole lowpass filter to clean up any remaining high-frequency whistle:
+  const filtered = new Float32Array(ap.length);
+  let state = 0;
+  for (let i = 0; i < ap.length; i++) {
+    state = state + 0.35 * (ap[i] - state);
+    filtered[i] = state;
+  }
+  return filtered;
 }
 
 function schroederReverbStereo(bufL, bufR, sr, wet) {
   if (wet <= 0.002) return [bufL.slice(), bufR.slice()];
   // Damp value of 0.28 to provide physical high-frequency damping
-  const wetL = monoReverb(bufL, sr, [35.3, 36.7, 33.8, 32.2], [5.1, 12.6], 0.28);
-  const wetR = monoReverb(bufR, sr, [35.9, 37.2, 34.3, 32.7], [5.3, 12.9], 0.28);
+  const wetL = monoReverb(bufL, sr, [35.3, 36.7, 33.8, 32.2], [5.1, 12.6], 0.45);
+  const wetR = monoReverb(bufR, sr, [35.9, 37.2, 34.3, 32.7], [5.3, 12.9], 0.45);
   const outL = new Float32Array(bufL.length), outR = new Float32Array(bufR.length);
   for (let i = 0; i < bufL.length; i++) {
     outL[i] = bufL[i] * (1 - wet) + wetL[i] * wet;
@@ -1898,19 +1910,32 @@ function drawSpectralImage(image, maxHarm) {
 
   const scaling = document.getElementById('freqScalingSelect').value || 'linear';
 
+  // Fully bilinear horizontal (time) and vertical (frequency) continuous interpolation
+  // from source image matrix directly to canvas screen space, ensuring infinite analog resolution
+  // in low bands and a stunning vector-like detail representation!
+  const srcLen = image.length;
   for (let x = 0; x < w; x++) {
-    const col = agg[x];
+    const normX = x / w;
+    const srcXFrac = normX * (srcLen - 1);
+    const x0 = clamp(Math.floor(srcXFrac), 0, srcLen - 1);
+    const x1 = clamp(Math.ceil(srcXFrac), 0, srcLen - 1);
+    const xFrac = srcXFrac - Math.floor(srcXFrac);
+
     for (let currY = 0; currY < h; currY++) {
       const normY = 1 - (currY / h);
       const kFrac = getHarmBoundFromNormY(normY, maxHarm, scaling);
 
-      const kFloor = clamp(Math.floor(kFrac), 1, maxHarm);
-      const kCeil = clamp(Math.ceil(kFrac), 1, maxHarm);
-      const frac = kFrac - Math.floor(kFrac);
+      const k0 = clamp(Math.floor(kFrac), 1, maxHarm);
+      const k1 = clamp(Math.ceil(kFrac), 1, maxHarm);
+      const kFracDiff = kFrac - Math.floor(kFrac);
 
-      const valFloor = col[kFloor] || 0;
-      const valCeil = col[kCeil] || 0;
-      const valInterp = valFloor * (1 - frac) + valCeil * frac;
+      const v00 = image[x0][k0] || 0;
+      const v10 = image[x1][k0] || 0;
+      const v01 = image[x0][k1] || 0;
+      const v11 = image[x1][k1] || 0;
+
+      const valInterp = (v00 * (1 - xFrac) + v10 * xFrac) * (1 - kFracDiff) +
+                        (v01 * (1 - xFrac) + v11 * xFrac) * kFracDiff;
 
       const v = clamp(valInterp / maxVal, 0, 1);
       const [r, g, b] = spectralColormap(v);
