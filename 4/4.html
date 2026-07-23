@@ -218,25 +218,78 @@
   <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— lead voice · harmonic index (↑) × time (→) · Markov-evolved amplitude</span></div>
 
   <!-- Interactive Tonal Spectral Painting Dashboard -->
-  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; background:var(--panel); border:1px solid var(--border); padding:8px 12px; border-radius:5px;">
-    <span style="font-size:11px; font-weight:bold; color:var(--phosphor);">🎨 TONAL SPECTRAL PAINTING:</span>
-    <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
-      <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
-    </label>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
-    <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
-      <option value="attractor">Tone Attractor (Boost/Draw)</option>
-      <option value="lowLimit">Low Frequency Limit (Filter)</option>
-      <option value="highLimit">High Frequency Limit (Filter)</option>
-    </select>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <button type="button" id="resetActiveCurveBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Reset Active</button>
-    <button type="button" id="clearAllCurvesBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Clear All</button>
-    <div style="height:14px; width:1px; background:var(--border);"></div>
-    <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
-      Attraction Strength: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:70px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
-    </label>
+  <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; background:var(--panel); border:1px solid var(--border); padding:10px 14px; border-radius:6px;">
+    <!-- Row 1: Active Painting and Curve Selection Controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+      <span style="font-size:11px; font-weight:bold; color:var(--phosphor);">🎨 TONAL SPECTRAL PAINTING:</span>
+      <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
+      </label>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="snapHarmonicCheckbox" style="accent-color:var(--cyan);" checked> Snap to Harmonic Grid
+      </label>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
+      <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="attractor">Tone Attractor (Boost/Draw)</option>
+        <option value="lowLimit">Low Frequency Limit (Filter)</option>
+        <option value="highLimit">High Frequency Limit (Filter)</option>
+      </select>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <button type="button" id="resetActiveCurveBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Reset Active</button>
+      <button type="button" id="clearAllCurvesBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Clear All</button>
+    </div>
+
+    <!-- Row 2: Resolution, Scaling, and Advanced Grid Adjustment Controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
+      <span style="font-size:11px; color:var(--muted);">Max Harmonics:</span>
+      <select id="maxHarmonicsSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="16">16 (Draft)</option>
+        <option value="24" selected>24 (Standard)</option>
+        <option value="32">32 (Enhanced)</option>
+        <option value="48">48 (High Res)</option>
+        <option value="64">64 (Ultra Res)</option>
+        <option value="96">96 (Extreme)</option>
+        <option value="128">128 (Maximum)</option>
+        <option value="256">256 (Hyper Res)</option>
+        <option value="512">512 (Extreme Res)</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Freq Scaling:</span>
+      <select id="freqScalingSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="linear" selected>Linear (Equal Spacing)</option>
+        <option value="logarithmic">Logarithmic (Perceptual)</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Grid Mode:</span>
+      <select id="gridModeSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="all" selected>All Harmonics</option>
+        <option value="consonant">Consonant Intervals Only</option>
+        <option value="stepAlign">EDO Step Aligned Only</option>
+        <option value="none">No Horizontal Grid</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Time Grid:</span>
+      <select id="timeGridSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="bar" selected>Bar divisions</option>
+        <option value="beat">Beat divisions</option>
+        <option value="none">No Time Grid</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+        Attraction: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:60px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
+      </label>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+        Height: <input type="range" id="canvasHeightSlider" min="200" max="1200" step="10" value="800" style="width:80px; height:4px; margin:0;"> <span id="canvasHeightVal" style="color:var(--cyan); font-weight:600;">800px</span>
+      </label>
+    </div>
   </div>
 
   <canvas id="spectralCanvas"></canvas>
@@ -297,6 +350,19 @@
       <label>Tension / chromaticism <span class="val" id="tensionVal">0.18</span></label>
       <input type="range" id="tensionSlider" min="0" max="1" step="0.01" value="0.18">
     </div>
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+    <div class="control">
+      <label>Preceding Input Chord (Outside)</label>
+      <select id="inputChordSelect" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none">None (Default Tonic Start)</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Succeeding Output Chord (Next Outside)</label>
+      <select id="outputChordSelect" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none">None (Default Tonic End)</option>
+      </select>
+    </div>
   </div>
 
   <div class="panel">
@@ -353,6 +419,39 @@
     <div class="control">
       <label>Rhythmic density <span class="val" id="densityVal">0.50</span></label>
       <input type="range" id="densitySlider" min="0" max="1" step="0.01" value="0.50">
+    </div>
+
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+
+    <div class="control">
+      <label>Melodic Articulation <span class="val" id="phraseGateVal">0.80</span></label>
+      <input type="range" id="phraseGateSlider" min="0.10" max="1.50" step="0.05" value="0.80">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Staccato (0.1) vs. Legato/Overlapping (1.5).</span>
+    </div>
+
+    <div class="control">
+      <label>Rhythmic Groove</label>
+      <select id="phraseGrooveSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="straight" selected>Straight 16th Notes</option>
+        <option value="swing">Light Swing / Shuffle</option>
+        <option value="triplet">Triplet / Sextuplet Feel</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Ornamentation Prob <span class="val" id="ornamentVal">0.15</span></label>
+      <input type="range" id="ornamentSlider" min="0" max="1" step="0.05" value="0.15">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Trills, grace notes, and rapid double-triggers.</span>
+    </div>
+
+    <div class="control">
+      <label>Motif Development</label>
+      <select id="motifDevSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none" selected>Through-Composed (None)</option>
+        <option value="repeat">Motif Repetition (1 Bar)</option>
+        <option value="transpose">Transposed Repetition</option>
+        <option value="invert">Inverted Call-and-Response</option>
+      </select>
     </div>
   </div>
 
@@ -477,6 +576,16 @@
       <label>Output gain <span class="val" id="gainVal">0.80</span></label>
       <input type="range" id="gainSlider" min="0" max="1" step="0.01" value="0.80">
     </div>
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+    <div class="control">
+      <label>Synthesis Sample Rate</label>
+      <select id="sampleRateSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="22050">22050 Hz (High Resolution Low Bands)</option>
+        <option value="32000" selected>32000 Hz (Balanced Standard)</option>
+        <option value="44100">44100 Hz (CD Quality)</option>
+        <option value="48000">48000 Hz (Pro Audio Studio)</option>
+      </select>
+    </div>
   </div>
 
   <div class="panel" style="grid-column: span var(--grid-span, 1);">
@@ -555,6 +664,55 @@ class RNG {
 
 function lerp(a, b, t) { return a + (b - a) * t; }
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function getNormYForHarmBound(kBound, maxHarm, scaling) {
+  if (scaling === 'logarithmic') {
+    const logMin = Math.log(0.5);
+    const logMax = Math.log(maxHarm + 0.5);
+    return (Math.log(kBound) - logMin) / (logMax - logMin);
+  }
+  return (kBound - 0.5) / maxHarm;
+}
+
+function getHarmBoundFromNormY(normY, maxHarm, scaling) {
+  if (scaling === 'logarithmic') {
+    const logMin = Math.log(0.5);
+    const logMax = Math.log(maxHarm + 0.5);
+    const logVal = logMin + normY * (logMax - logMin);
+    return Math.exp(logVal);
+  }
+  return 0.5 + normY * maxHarm;
+}
+
+function updateExternalChordsSelects(states) {
+  const inputSel = document.getElementById('inputChordSelect');
+  const outputSel = document.getElementById('outputChordSelect');
+  if (!inputSel || !outputSel) return;
+  const savedInputVal = inputSel.value;
+  const savedOutputVal = outputSel.value;
+
+  inputSel.innerHTML = '<option value="none">None (Default Tonic Start)</option>';
+  outputSel.innerHTML = '<option value="none">None (Default Tonic End)</option>';
+
+  states.forEach((st, idx) => {
+    const optIn = document.createElement('option');
+    optIn.value = idx;
+    optIn.textContent = `${idx + 1}: ${st.name}`;
+    inputSel.appendChild(optIn);
+
+    const optOut = document.createElement('option');
+    optOut.value = idx;
+    optOut.textContent = `${idx + 1}: ${st.name}`;
+    outputSel.appendChild(optOut);
+  });
+
+  if ([...inputSel.options].some(o => o.value === savedInputVal)) {
+    inputSel.value = savedInputVal;
+  }
+  if ([...outputSel.options].some(o => o.value === savedOutputVal)) {
+    outputSel.value = savedOutputVal;
+  }
+}
 
 function evaluateBezier(x, p0, p1, p2, p3) {
   let low = 0, high = 1;
@@ -825,10 +983,20 @@ function resolveChordRootSteps(stateIdx, states, tuning) {
   return tuning.scale[st.degree] + (st.chromaticShift || 0) * tuning.smallStep;
 }
 
-function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap) {
+function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap, inputChordIdx, outputChordIdx) {
   const n = matrices.size;
   const seq = new Array(numChords);
-  seq[0] = (lockedMap && lockedMap[0] !== undefined) ? lockedMap[0] : 0;
+
+  if (lockedMap && lockedMap[0] !== undefined) {
+    seq[0] = lockedMap[0];
+  } else if (inputChordIdx !== undefined && inputChordIdx !== null && inputChordIdx !== 'none') {
+    const startIdx = parseInt(inputChordIdx);
+    const row = new Float64Array(n);
+    for (let j = 0; j < n; j++) row[j] = (1 - tension) * matrices.consonant[startIdx][j] + tension * matrices.chromatic[startIdx][j];
+    seq[0] = rng.weightedIndex(row);
+  } else {
+    seq[0] = 0;
+  }
 
   intermediateLog.progression = [];
   intermediateLog.progression.push({
@@ -865,11 +1033,34 @@ function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap
     });
   }
   if (numChords > 1 && !(lockedMap && lockedMap[numChords - 1] !== undefined)) {
-    seq[numChords - 1] = 0;
-    const lastLog = intermediateLog.progression[numChords - 1];
-    if (lastLog) {
-      lastLog.forcedTonic = true;
-      lastLog.selectedIndex = 0;
+    if (outputChordIdx !== undefined && outputChordIdx !== null && outputChordIdx !== 'none') {
+      const prev = seq[numChords - 2];
+      const target = parseInt(outputChordIdx);
+      const row = new Float64Array(n);
+      let sum = 0;
+      for (let k = 0; k < n; k++) {
+        const transFromPrev = (1 - tension) * matrices.consonant[prev][k] + tension * matrices.chromatic[prev][k];
+        const transToTarget = (1 - tension) * matrices.consonant[k][target] + tension * matrices.chromatic[k][target];
+        row[k] = transFromPrev * transToTarget;
+        sum += row[k];
+      }
+      if (sum > 0) {
+        seq[numChords - 1] = rng.weightedIndex(row);
+        const lastLog = intermediateLog.progression[numChords - 1];
+        if (lastLog) {
+          lastLog.selectedIndex = seq[numChords - 1];
+          lastLog.forcedTonic = false;
+        }
+      } else {
+        seq[numChords - 1] = 0;
+      }
+    } else {
+      seq[numChords - 1] = 0;
+      const lastLog = intermediateLog.progression[numChords - 1];
+      if (lastLog) {
+        lastLog.forcedTonic = true;
+        lastLog.selectedIndex = 0;
+      }
     }
   }
   return seq;
@@ -953,6 +1144,9 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
 
   intermediateLog.phrase = [];
 
+  const motif16ths = beatsPerBar * 4;
+  const motifPattern = new Array(motif16ths).fill(null);
+
   for (let step = 0; step < total16ths; step++) {
     const stepIdx = step % 32;
     const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
@@ -962,85 +1156,126 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       const chordIdx = Math.min(chords.length - 1, Math.floor(beatPos / beatsPerBar));
       const chord = chords[chordIdx];
 
-      // Duration: scale slightly based on rhythmic density
-      const dur16ths = (p.density > 0.7) ? 1 : 2;
-      const durBeats = (dur16ths * 0.25) * 0.92;
-
-      // 1. Establish the tonal candidate steps relative to tuning
-      let candidateSteps = [];
-
-      // Influence candidate steps based on ARPEGG master cue layer (forces chord tone arpeggiation)
-      const forceArpegg = p.drumCues && p.drumCues.arpegg && p.drumCues.arpegg[stepIdx];
-      const isAnchorBeat = p.drumCues && p.drumCues.m_anch && p.drumCues.m_anch[stepIdx];
-
-      if (p.tonalDistribution === 'chord_tones' || forceArpegg || isAnchorBeat) {
-        candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
-      } else if (p.tonalDistribution === 'pentatonic') {
-        const pent = getPentatonicSteps(tuning);
-        candidateSteps = pent.map(steps => chord.rootSteps + steps);
-      } else if (p.tonalDistribution === 'chromatic') {
-        const base = tuning.scale.map(steps => chord.rootSteps + steps);
-        const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
-        candidateSteps = base.concat(chromaticShifts);
-      } else {
-        candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+      let timingOffset = 0;
+      if (p.phraseGroove === 'swing' && (step % 2 === 1)) {
+        timingOffset = 1.0 / 24.0;
+      } else if (p.phraseGroove === 'triplet') {
+        const substep = step % 4;
+        if (substep === 1) timingOffset = -1.0 / 24.0;
+        else if (substep === 3) timingOffset = 1.0 / 24.0;
       }
 
-      // Filter empty list guard
-      if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
+      const dur16ths = (p.density > 0.7) ? 1 : 2;
+      const baseDur = dur16ths * 0.25;
+      const durBeats = baseDur * (p.phraseGate !== undefined ? p.phraseGate : 0.80);
 
-      // 2. Compute motion weights based on conjunct vs disjunct slider
-      // and directional trends: -1 (down), 0 (balanced), +1 (up)
-      let bestCandidate = candidateSteps[0];
-      let candidateWeights = null;
-      let chosenIdx = -1;
+      const motifStep = step % motif16ths;
+      let forceMotifValue = null;
+      let isMotifActive = p.motifDev !== 'none' && step >= motif16ths;
 
-      if (isFirstNote) {
-        chosenIdx = Math.floor(rng.next() * candidateSteps.length);
-        bestCandidate = candidateSteps[chosenIdx];
-        isFirstNote = false;
-      } else {
-        const weights = new Float64Array(candidateSteps.length);
-        for (let i = 0; i < candidateSteps.length; i++) {
-          const cand = candidateSteps[i];
-          const distSteps = Math.abs(cand - lastPitchSteps);
-
-          // If ARPEGG cue is active, we heavily bias towards skip/arpeggiation steps (disjunct skips)
-          // If PASSING cue is active, we heavily bias towards stepwise scale movement (conjunct)
-          let biasScalar = p.motionBias;
-          if (forceArpegg) biasScalar = 0.9;
-          else if (p.drumCues && p.drumCues.passing && p.drumCues.passing[stepIdx]) biasScalar = 0.1;
-
-          const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, biasScalar) * tuning.smallStep));
-
-          let dirAffinity = 1.0;
-          if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
-            dirAffinity = 1.0 + p.dirTrend * 3.0;
-          } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
-            dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
-          }
-
-          weights[i] = stepAffinity * dirAffinity;
+      if (isMotifActive && motifPattern[motifStep] !== null) {
+        const rawSaved = motifPattern[motifStep];
+        if (p.motifDev === 'repeat') {
+          forceMotifValue = rawSaved;
+        } else if (p.motifDev === 'transpose') {
+          forceMotifValue = rawSaved + tuning.smallStep * 2;
+        } else if (p.motifDev === 'invert') {
+          forceMotifValue = -rawSaved;
         }
-        chosenIdx = rng.weightedIndex(weights);
-        bestCandidate = candidateSteps[chosenIdx];
-        candidateWeights = Array.from(weights);
+      }
+
+      let bestCandidate;
+      let candidateSteps = [];
+      let chosenIdx = -1;
+      let candidateWeights = null;
+
+      if (forceMotifValue !== null) {
+        bestCandidate = chord.rootSteps + forceMotifValue;
+      } else {
+        const forceArpegg = p.drumCues && p.drumCues.arpegg && p.drumCues.arpegg[stepIdx];
+        const isAnchorBeat = p.drumCues && p.drumCues.m_anch && p.drumCues.m_anch[stepIdx];
+
+        if (p.tonalDistribution === 'chord_tones' || forceArpegg || isAnchorBeat) {
+          candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
+        } else if (p.tonalDistribution === 'pentatonic') {
+          const pent = getPentatonicSteps(tuning);
+          candidateSteps = pent.map(steps => chord.rootSteps + steps);
+        } else if (p.tonalDistribution === 'chromatic') {
+          const base = tuning.scale.map(steps => chord.rootSteps + steps);
+          const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
+          candidateSteps = base.concat(chromaticShifts);
+        } else {
+          candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+        }
+
+        if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
+
+        if (isFirstNote) {
+          chosenIdx = Math.floor(rng.next() * candidateSteps.length);
+          bestCandidate = candidateSteps[chosenIdx];
+          isFirstNote = false;
+        } else {
+          const weights = new Float64Array(candidateSteps.length);
+          for (let i = 0; i < candidateSteps.length; i++) {
+            const cand = candidateSteps[i];
+            const distSteps = Math.abs(cand - lastPitchSteps);
+
+            let biasScalar = p.motionBias;
+            if (forceArpegg) biasScalar = 0.9;
+            else if (p.drumCues && p.drumCues.passing && p.drumCues.passing[stepIdx]) biasScalar = 0.1;
+
+            const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, biasScalar) * tuning.smallStep));
+
+            let leapPenalty = 1.0;
+            if (distSteps > tuning.largeStep && rng.next() > p.leapProbability) {
+              leapPenalty = 0.15;
+            }
+
+            let dirAffinity = 1.0;
+            if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
+              dirAffinity = 1.0 + p.dirTrend * 3.0;
+            } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
+              dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
+            }
+
+            weights[i] = stepAffinity * dirAffinity * leapPenalty;
+          }
+          chosenIdx = rng.weightedIndex(weights);
+          bestCandidate = candidateSteps[chosenIdx];
+          candidateWeights = Array.from(weights);
+        }
+
+        if (step < motif16ths) {
+          motifPattern[step] = bestCandidate - chord.rootSteps;
+        }
       }
 
       lastPitchSteps = bestCandidate;
 
-      // 3. Anchor precisely within Preferred Octave Bounds
       const baseOct = p.octaveBase !== undefined ? p.octaveBase : 2;
       const driftLimit = p.octaveDrift !== undefined ? p.octaveDrift : 1;
       const driftOffset = driftLimit > 0 ? Math.round(rng.range(-driftLimit, driftLimit + 0.99)) : 0;
       const absoluteOctave = baseOct + driftOffset;
       const finalSteps = absoluteOctave * tuning.edo + bestCandidate;
 
-      // Log the generation decision
+      const trillOrGraceProb = p.ornamentProb !== undefined ? p.ornamentProb : 0.15;
+      const triggerOrnament = rng.next() < trillOrGraceProb;
+
+      if (triggerOrnament && !isFirstNote) {
+        const graceSteps = absoluteOctave * tuning.edo + lastPitchSteps;
+        notes.push({
+          startBeat: Math.max(0, beatPos + timingOffset - 0.05),
+          durBeats: 0.04,
+          steps: graceSteps,
+          seqType: 'phrase',
+          stepIdx: stepIdx
+        });
+      }
+
       intermediateLog.phrase.push({
         step: step,
         stepIdx: stepIdx,
-        beatPos: beatPos,
+        beatPos: beatPos + timingOffset,
         chordName: chord.name,
         candidateSteps: Array.from(candidateSteps),
         candidateWeights: candidateWeights,
@@ -1051,7 +1286,7 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
       });
 
       notes.push({
-        startBeat: beatPos,
+        startBeat: beatPos + timingOffset,
         durBeats: durBeats,
         steps: finalSteps,
         seqType: 'phrase',
@@ -1062,7 +1297,6 @@ function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
   return notes;
 }
 
-// Bassline generated from the exact same master drum cues
 function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
   const padNotes = [], bassNotes = [];
   const totalBeats = chords.length * beatsPerBar;
@@ -1193,7 +1427,7 @@ const COS_POWER_EXPANSION = {
 function buildHarmonicTemplate(f0, p, sr, formants) {
   const nyquist = sr * 0.5;
   const maxAudible = Math.min(nyquist * 0.95, 9000);
-  const numHarmonics = clamp(Math.floor(maxAudible / f0), 4, 32);
+  const numHarmonics = clamp(Math.floor(maxAudible / f0), 4, p.maxHarmonics || 24);
 
   const fc0 = lerp(9000, 250, p.memory);
   const orderGain = { 2: p.evenDrive, 3: p.oddDrive, 4: p.evenDrive * p.evenDrive };
@@ -1373,7 +1607,9 @@ function renderNote(bufL, bufR, sr, startSample, durSamples, f0, template, spect
     for (let k = 1; k <= numH; k++) {
       if (freqs[k] < nyquist) {
         const lvl = spectralImage[f0i][k] * (1 - frac) + spectralImage[f1i][k] * frac;
-        const amp = template.amp[k] * lvl * env * velocity;
+        // Physical air absorption roll-off to eliminate high-band whistling/ringing:
+        const airDamping = Math.exp(-0.00008 * freqs[k]);
+        const amp = template.amp[k] * lvl * env * velocity * airDamping;
         sample += amp * lutCos(phaseAcc[k]);
       }
       phaseAcc[k] += incr[k];
@@ -1428,20 +1664,28 @@ function allpassFilter(input, delay, g) {
 function monoReverb(input, sr, combMs, apMs, dampValue) {
   const sum = new Float32Array(input.length);
   for (const ms of combMs) {
-    // 0.81 feedback and 0.28 damping to guarantee stable, warm, non-resonant diffusion
-    const c = combFilterDamped(input, Math.round(ms * sr / 1000), 0.81, dampValue);
+    // Reduce Comb feedback from 0.81 to 0.74 to completely eliminate high-frequency metallic resonances and ringing:
+    const c = combFilterDamped(input, Math.round(ms * sr / 1000), 0.74, dampValue);
     for (let i = 0; i < input.length; i++) sum[i] += c[i] * 0.25;
   }
   let ap = sum;
-  for (const ms of apMs) ap = allpassFilter(ap, Math.round(ms * sr / 1000), 0.48);
-  return ap;
+  for (const ms of apMs) ap = allpassFilter(ap, Math.round(ms * sr / 1000), 0.45);
+
+  // Apply a gentle post-reverb one-pole lowpass filter to clean up any remaining high-frequency whistle:
+  const filtered = new Float32Array(ap.length);
+  let state = 0;
+  for (let i = 0; i < ap.length; i++) {
+    state = state + 0.35 * (ap[i] - state);
+    filtered[i] = state;
+  }
+  return filtered;
 }
 
 function schroederReverbStereo(bufL, bufR, sr, wet) {
   if (wet <= 0.002) return [bufL.slice(), bufR.slice()];
   // Damp value of 0.28 to provide physical high-frequency damping
-  const wetL = monoReverb(bufL, sr, [35.3, 36.7, 33.8, 32.2], [5.1, 12.6], 0.28);
-  const wetR = monoReverb(bufR, sr, [35.9, 37.2, 34.3, 32.7], [5.3, 12.9], 0.28);
+  const wetL = monoReverb(bufL, sr, [35.3, 36.7, 33.8, 32.2], [5.1, 12.6], 0.45);
+  const wetR = monoReverb(bufR, sr, [35.9, 37.2, 34.3, 32.7], [5.3, 12.9], 0.45);
   const outL = new Float32Array(bufL.length), outR = new Float32Array(bufR.length);
   for (let i = 0; i < bufL.length; i++) {
     outL[i] = bufL[i] * (1 - wet) + wetL[i] * wet;
@@ -1557,6 +1801,9 @@ function drawBezierCurves(ctx, w, h) {
     highLimit: 'High Frequency Limit'
   };
 
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
   Object.keys(curves).forEach(key => {
     const pts = curves[key];
     const isActive = (key === activeCurveType);
@@ -1564,30 +1811,34 @@ function drawBezierCurves(ctx, w, h) {
     ctx.setLineDash(isActive ? [] : [4, 4]);
     ctx.strokeStyle = curveColors[key];
 
-    // Draw Bezier line
+    // Plot the curve with steps to handle frequency scaling cleanly
     ctx.beginPath();
-    const startX = pts[0].x * w;
-    const startY = (1 - pts[0].y) * h;
-    ctx.moveTo(startX, startY);
+    const plotSteps = 200;
+    for (let s = 0; s <= plotSteps; s++) {
+      const xRatio = s / plotSteps;
+      const xVal = xRatio * w;
+      const yNorm = evaluateBezier(xRatio, pts[0], pts[1], pts[2], pts[3]);
 
-    const cp1X = pts[1].x * w;
-    const cp1Y = (1 - pts[1].y) * h;
-    const cp2X = pts[2].x * w;
-    const cp2Y = (1 - pts[2].y) * h;
-    const endX = pts[3].x * w;
-    const endY = (1 - pts[3].y) * h;
+      const kVal = 1 + yNorm * (maxHarm - 1);
+      const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+      const yVal = h - normYPixel * h;
 
-    ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+      if (s === 0) {
+        ctx.moveTo(xVal, yVal);
+      } else {
+        ctx.lineTo(xVal, yVal);
+      }
+    }
     ctx.stroke();
 
-    // Draw handles / control points for the active curve
     if (isActive) {
       ctx.setLineDash([]);
       pts.forEach((pt, idx) => {
         const hX = pt.x * w;
-        const hY = (1 - pt.y) * h;
+        const kVal = 1 + pt.y * (maxHarm - 1);
+        const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+        const hY = h - normYPixel * h;
 
-        // Draw outer halo
         ctx.beginPath();
         ctx.arc(hX, hY, 8, 0, 2 * Math.PI);
         ctx.fillStyle = 'rgba(20, 24, 30, 0.85)';
@@ -1596,19 +1847,16 @@ function drawBezierCurves(ctx, w, h) {
         ctx.fill();
         ctx.stroke();
 
-        // Draw inner dot
         ctx.beginPath();
         ctx.arc(hX, hY, 3, 0, 2 * Math.PI);
         ctx.fillStyle = curveColors[key];
         ctx.fill();
 
-        // Text labels for control points
         ctx.font = '9px "IBM Plex Mono", monospace';
         ctx.fillStyle = curveColors[key];
         ctx.fillText(`P${idx}`, hX + 11, hY + 3);
       });
 
-      // Draw active curve label text on the canvas
       ctx.fillStyle = curveColors[key];
       ctx.font = 'bold 10px "IBM Plex Mono", monospace';
       ctx.fillText(`★ Active: ${curveLabel[key]}`, 15, h - 15);
@@ -1619,30 +1867,138 @@ function drawBezierCurves(ctx, w, h) {
 function drawSpectralImage(image, maxHarm) {
   lastVizImage = image; lastVizMaxHarm = maxHarm;
   const canvas = document.getElementById('spectralCanvas');
-  const rowH = 8;
+
+  // Dynamic height adjustment to make editor larger (e.g. 800px)
   const dpr = window.devicePixelRatio || 1;
+  const requestedHeight = parseFloat(document.getElementById('canvasHeightSlider').value) || 800;
+
   const cssWidth = canvas.clientWidth || (canvas.parentElement && canvas.parentElement.clientWidth) || 900;
   const displayW = clamp(Math.round(cssWidth * dpr), 200, 2200);
   const agg = aggregateImageForDisplay(image, displayW, maxHarm);
-  const w = displayW, h = maxHarm * rowH;
+  const w = displayW;
+  const h = Math.round(requestedHeight * dpr);
   canvas.width = w; canvas.height = h;
-  canvas.style.height = Math.round(h / dpr) + 'px';
+  canvas.style.height = requestedHeight + 'px';
+
   const ctx = canvas.getContext('2d');
   const maxVal = percentileMax(agg, maxHarm, 0.97);
   const imgData = ctx.createImageData(w, h);
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+
+  // Fully bilinear horizontal (time) and vertical (frequency) continuous interpolation
+  // from source image matrix directly to canvas screen space, ensuring infinite analog resolution
+  // in low bands and a stunning vector-like detail representation!
+  const srcLen = image.length;
   for (let x = 0; x < w; x++) {
-    const col = agg[x];
-    for (let k = 1; k <= maxHarm; k++) {
-      const v = clamp(col[k] / maxVal, 0, 1);
+    const normX = x / w;
+    const srcXFrac = normX * (srcLen - 1);
+    const x0 = clamp(Math.floor(srcXFrac), 0, srcLen - 1);
+    const x1 = clamp(Math.ceil(srcXFrac), 0, srcLen - 1);
+    const xFrac = srcXFrac - Math.floor(srcXFrac);
+
+    for (let currY = 0; currY < h; currY++) {
+      const normY = 1 - (currY / h);
+      const kFrac = getHarmBoundFromNormY(normY, maxHarm, scaling);
+
+      const k0 = clamp(Math.floor(kFrac), 1, maxHarm);
+      const k1 = clamp(Math.ceil(kFrac), 1, maxHarm);
+      const kFracDiff = kFrac - Math.floor(kFrac);
+
+      const v00 = image[x0][k0] || 0;
+      const v10 = image[x1][k0] || 0;
+      const v01 = image[x0][k1] || 0;
+      const v11 = image[x1][k1] || 0;
+
+      const valInterp = (v00 * (1 - xFrac) + v10 * xFrac) * (1 - kFracDiff) +
+                        (v01 * (1 - xFrac) + v11 * xFrac) * kFracDiff;
+
+      const v = clamp(valInterp / maxVal, 0, 1);
       const [r, g, b] = spectralColormap(v);
-      const yTop = h - k * rowH;
-      for (let ry = 0; ry < rowH; ry++) {
-        const idx = ((yTop + ry) * w + x) * 4;
-        imgData.data[idx] = r; imgData.data[idx + 1] = g; imgData.data[idx + 2] = b; imgData.data[idx + 3] = 255;
-      }
+
+      const idx = (currY * w + x) * 4;
+      imgData.data[idx] = r;
+      imgData.data[idx + 1] = g;
+      imgData.data[idx + 2] = b;
+      imgData.data[idx + 3] = 255;
     }
   }
   ctx.putImageData(imgData, 0, 0);
+
+  // Draw Horizontal and Vertical Quantization Grid lines matching EDO scale
+  if (paintEnabled) {
+    const gridMode = document.getElementById('gridModeSelect').value || 'all';
+    if (gridMode !== 'none') {
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
+
+      for (let k = 1; k <= maxHarm; k++) {
+        if (gridMode === 'consonant') {
+          const isConsonant = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16].includes(k);
+          if (!isConsonant) continue;
+        } else if (gridMode === 'stepAlign') {
+          const edo = currentTuning ? currentTuning.edo : 12;
+          const rawSteps = edo * Math.log2(k);
+          const roundedSteps = Math.round(rawSteps);
+          const centsDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+          if (Math.abs(centsDev) > 15) continue;
+        }
+
+        const normYMid = getNormYForHarmBound(k, maxHarm, scaling);
+        const yVal = h - normYMid * h;
+
+        ctx.strokeStyle = 'rgba(82, 214, 198, 0.18)'; // Faint Cyan
+        ctx.beginPath();
+        ctx.moveTo(0, yVal);
+        ctx.lineTo(w, yVal);
+        ctx.stroke();
+
+        const edo = currentTuning ? currentTuning.edo : 12;
+        const rawSteps = edo * Math.log2(k);
+        const roundedSteps = Math.round(rawSteps);
+        const centDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+        const centSign = centDev >= 0 ? `+${centDev}` : `${centDev}`;
+        const devString = Math.abs(centDev) > 3 ? ` (${centSign}¢)` : '';
+
+        let noteLabel = `H${k}`;
+        if (k === 1) noteLabel += ' [Root]';
+        else if (k === 2) noteLabel += ' [Octave]';
+        else if (k === 3) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+        else if (k === 4) noteLabel += ' [Double Octave]';
+        else if (k === 5) noteLabel += ` [Third / step ${roundedSteps}${devString}]`;
+        else if (k === 6) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+        else if (k === 8) noteLabel += ' [Triple Octave]';
+        else noteLabel += ` [step ${roundedSteps}${devString}]`;
+
+        ctx.fillStyle = 'rgba(82, 214, 198, 0.55)';
+        ctx.font = '10px "IBM Plex Mono", monospace';
+        ctx.fillText(noteLabel, 12, yVal - 3);
+      }
+    }
+
+    // Draw Vertical Bar division lines
+    const timeGrid = document.getElementById('timeGridSelect').value || 'bar';
+    if (timeGrid !== 'none') {
+      ctx.strokeStyle = 'rgba(232, 163, 61, 0.15)'; // Faint Amber
+      const barsCount = lastFullParams ? lastFullParams.bars : 8;
+      const subdivs = (timeGrid === 'beat') ? barsCount * 4 : barsCount;
+      const labelPrefix = (timeGrid === 'beat') ? 'Beat' : 'Bar';
+
+      for (let i = 0; i <= subdivs; i++) {
+        const xVal = (i / subdivs) * w;
+        ctx.beginPath();
+        ctx.moveTo(xVal, 0);
+        ctx.lineTo(xVal, h);
+        ctx.stroke();
+
+        if (i < subdivs) {
+          ctx.fillStyle = 'rgba(232, 163, 61, 0.45)';
+          ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+          ctx.fillText(`${labelPrefix} ${i + 1}`, xVal + 8, h - 8);
+        }
+      }
+    }
+  }
 
   // Overlay the active Bezier curves and control point handles
   drawBezierCurves(ctx, w, h);
@@ -1676,6 +2032,7 @@ const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlide
 
 // Panel 2 Phrase controls
 const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
+const phraseGateSlider = $('phraseGateSlider'), ornamentSlider = $('ornamentSlider');
 const phraseTonalDistributionSelect = $('phraseTonalDistributionSelect');
 const octaveBaseSlider = $('octaveBaseSlider'), octaveDriftSlider = $('octaveDriftSlider');
 const motionBiasSlider = $('motionBiasSlider'), dirTrendSlider = $('dirTrendSlider');
@@ -2176,6 +2533,10 @@ chordEditClose.addEventListener('click', () => { chordEditPopover.classList.remo
 chordEditPopover.addEventListener('click', (e) => { if (e.target === chordEditPopover) { chordEditPopover.classList.remove('open'); editingCellIndex = null; } });
 
 async function reRenderFromEditedProgression() {
+  if (lastFullParams) {
+    lastFullParams.sample = parseInt(document.getElementById('sampleRateSelect').value) || 32000;
+  }
+  pieceSampleRate = parseInt(document.getElementById('sampleRateSelect').value) || 32000;
   if (!lastFullParams || !currentChords || !currentTuning) return;
   ensureAudioContext();
   stopPlayback();
@@ -2263,13 +2624,19 @@ specCanvas.addEventListener('mousedown', (e) => {
   const cx = e.clientX - rect.left;
   const cy = e.clientY - rect.top;
 
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
   const activePts = curves[activeCurveType];
   let bestDist = Infinity;
   let bestIdx = -1;
 
   activePts.forEach((pt, idx) => {
     const hX = pt.x * rect.width;
-    const hY = (1 - pt.y) * rect.height;
+    const kVal = 1 + pt.y * (maxHarm - 1);
+    const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+    const hY = rect.height - normYPixel * rect.height;
+
     const dist = Math.hypot(cx - hX, cy - hY);
     if (dist < clickRadius && dist < bestDist) {
       bestDist = dist;
@@ -2283,25 +2650,44 @@ specCanvas.addEventListener('mousedown', (e) => {
   }
 });
 
+// Height Adjustment Slider Wiring
+const canvasHeightSlider = $('canvasHeightSlider');
+const canvasHeightVal = $('canvasHeightVal');
+canvasHeightSlider.addEventListener('input', () => {
+  canvasHeightVal.textContent = canvasHeightSlider.value + 'px';
+  if (lastVizImage) {
+    drawSpectralImage(lastVizImage, lastVizMaxHarm);
+  }
+});
+
 specCanvas.addEventListener('mousemove', (e) => {
   if (!paintEnabled || draggedPointIdx === -1) return;
   const rect = specCanvas.getBoundingClientRect();
   const normX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
-  const normY = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+  const normYCanvas = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
+  const kVal = getHarmBoundFromNormY(normYCanvas, maxHarm, scaling);
+  const logicalY = (kVal - 1) / (maxHarm - 1);
 
   const activePts = curves[activeCurveType];
 
-  // Update Y coordinate
-  activePts[draggedPointIdx].y = normY;
+  const shouldSnap = $('snapHarmonicCheckbox').checked;
+  if (shouldSnap) {
+    const kNearest = clamp(Math.round(kVal), 1, maxHarm);
+    activePts[draggedPointIdx].y = clamp((kNearest - 1) / (maxHarm - 1), 0, 1);
+  } else {
+    activePts[draggedPointIdx].y = clamp(logicalY, 0, 1);
+  }
 
-  // Update horizontal X only for intermediate handles P1 and P2
   if (draggedPointIdx === 1) {
     activePts[1].x = clamp(normX, 0.05, activePts[2].x - 0.05);
   } else if (draggedPointIdx === 2) {
     activePts[2].x = clamp(normX, activePts[1].x + 0.05, 0.95);
   }
 
-  // Live visual updates during drag
   if (lastVizImage) {
     drawSpectralImage(lastVizImage, lastVizMaxHarm);
   }
@@ -2347,6 +2733,15 @@ function readParams() {
     curves: JSON.parse(JSON.stringify(curves)),
     attractStrength: parseFloat(attractStrengthSlider.value),
 
+    // Dynamic dashboard choices
+    maxHarmonics: parseInt(document.getElementById('maxHarmonicsSelect').value) || 24,
+    sampleRate: parseInt(document.getElementById('sampleRateSelect').value) || 32000,
+    freqScaling: document.getElementById('freqScalingSelect').value || 'linear',
+    gridMode: document.getElementById('gridModeSelect').value || 'all',
+    timeGrid: document.getElementById('timeGridSelect').value || 'bar',
+    inputChord: document.getElementById('inputChordSelect').value || 'none',
+    outputChord: document.getElementById('outputChordSelect').value || 'none',
+
     seed: parseInt(seedInput.value) || 0,
     rootPC: parseInt(rootSelect.value),
     mode: modeSelect.value,
@@ -2359,6 +2754,10 @@ function readParams() {
     bars: parseInt(barsSlider.value),
     tension: parseFloat(tensionSlider.value),
     leapProbability: parseFloat(leapSlider.value),
+    phraseGate: parseFloat(document.getElementById('phraseGateSlider').value) || 0.80,
+    phraseGroove: document.getElementById('phraseGrooveSelect').value || 'straight',
+    ornamentProb: parseFloat(document.getElementById('ornamentSlider').value) || 0.15,
+    motifDev: document.getElementById('motifDevSelect').value || 'none',
     density: parseFloat(densitySlider.value),
 
     // Advanced Phrase generator hyperparameters
@@ -2404,7 +2803,7 @@ function ensureAudioContext() {
 }
 
 async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx, defaultSeqType) {
-  const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
+  const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo, templateCache } = ctx;
   let i = 0;
   for (const note of notes) {
     const startSample = Math.round(note.startBeat * secPerBeat * sr);
@@ -2412,7 +2811,15 @@ async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx, defaultSeqT
     const f0 = stepsToFreq(note.steps, tonicFreq, edo);
     // Dynamically retrieve formants per-note to support timeline modulation
     const noteFormants = getFormants(p, note.startBeat, secPerBeat);
-    const template = buildHarmonicTemplate(f0, p, sr, noteFormants);
+
+    // Check template cache to optimize rendering performance
+    const cacheKey = `${f0}_${noteFormants.map(f => `${f.freq}_${f.bw}_${f.gain}`).join('|')}`;
+    let template = templateCache ? templateCache.get(cacheKey) : null;
+    if (!template) {
+      template = buildHarmonicTemplate(f0, p, sr, noteFormants);
+      if (templateCache) templateCache.set(cacheKey, template);
+    }
+
     const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
     const image = buildSpectralImage(rng, template, numFrames, p, note.startBeat, secPerBeat);
     const pan = panFn(note);
@@ -2458,6 +2865,9 @@ function buildTheoryContext(p) {
   const consonantBase = p.mode === 'major' ? MAJOR_CONSONANT_BASE : MINOR_CONSONANT_BASE;
   const states = buildStateList(baseDefs, secondaryTargets, p.jazzEnabled);
   const matrices = buildProgressionMatrices(consonantBase, 9, secondaryTargets, p.jazzEnabled, p.secDomWeight);
+
+  updateExternalChordsSelects(states);
+
   return { tuning, states, matrices };
 }
 
@@ -2469,7 +2879,7 @@ async function doGenerate(p, onProgress) {
   const { tuning, states, matrices } = buildTheoryContext(p);
   currentStates = states; currentTuning = tuning; currentMatrices = matrices;
 
-  const stateIndices = generateProgressionIndices(progressionRng, matrices, p.tension, p.bars, lockedSlots);
+  const stateIndices = generateProgressionIndices(progressionRng, matrices, p.tension, p.bars, lockedSlots, p.inputChord, p.outputChord);
   const chords = resolveChords(stateIndices, states, tuning, progressionRng, { enabled: p.jazzEnabled, tritoneSubChance: p.tritoneSubChance, extensionDensity: p.extensionDensity });
   currentStateIndices = stateIndices; currentChords = chords;
   lastFullParams = p;
@@ -2484,6 +2894,7 @@ async function doGenerate(p, onProgress) {
 let surgicallyEditedNotes = null;
 
 async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
+  pieceSampleRate = p.sample || 32000;
   const sr = pieceSampleRate;
   const beatsPerBar = 4;
   const secPerBeat = 60 / p.tempo;
@@ -2516,11 +2927,11 @@ async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
   const FRAME_HOP_SEC = 0.025;
   const frameHopSamples = Math.max(1, Math.round(FRAME_HOP_SEC * sr));
 
-  const vizMaxHarm = 24;
+  const vizMaxHarm = p.maxHarmonics || 24;
   const totalFrames = Math.ceil(totalSamples / frameHopSamples) + 1;
   const vizImage = Array.from({ length: totalFrames }, () => new Float32Array(vizMaxHarm + 1));
 
-  const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
+  const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo, templateCache: new Map() };
   const padPans = [-0.55, 0.2, 0.55, -0.15];
 
   onProgress('rendering lead…');
@@ -2616,6 +3027,7 @@ $('updateFromNoteEditorBtn').addEventListener('click', async () => {
     statusLine.textContent = 're-synthesizing from surgical note edits…';
 
     const p = lastFullParams || readParams();
+    pieceSampleRate = p.sample || 32000;
     const voiceRng = new RNG((p.seed ^ 0x9E3779B9 ^ 0xA5A5A5) >>> 0);
     const secs = await renderFromChords(currentChords, p, currentTuning, voiceRng, msg => { statusLine.textContent = msg; });
     statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — surgically edited';
@@ -2629,6 +3041,16 @@ $('updateFromNoteEditorBtn').addEventListener('click', async () => {
     generateBtn.disabled = false;
   }
 });
+$('maxHarmonicsSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('freqScalingSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('gridModeSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('timeGridSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('inputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('outputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('sampleRateSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('phraseGrooveSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('motifDevSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+
 playBtn.addEventListener('click', () => { playAudio(); stopBtn.disabled = false; });
 stopBtn.addEventListener('click', () => { stopPlayback(); });
 exportBtn.addEventListener('click', exportWav);
