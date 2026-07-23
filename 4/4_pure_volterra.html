@@ -1,0 +1,3081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EIDOLON — Volterra Spectral Series Synthesizer</title>
+<style>
+  :root{
+    --void:#0A0C10;
+    --panel:#13161D;
+    --panel2:#181C25;
+    --border:#262B36;
+    --phosphor:#E8A33D;
+    --phosphor-dim:#8a6323;
+    --cyan:#52D6C6;
+    --ink:#D6D9E0;
+    --muted:#6B7280;
+    --warn:#C4544A;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--void);color:var(--ink);font-family:'IBM Plex Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;-webkit-font-smoothing:antialiased;}
+  ::selection{background:var(--phosphor-dim);color:#fff;}
+  button:focus-visible, input:focus-visible, select:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+
+  .hero{padding:22px 20px 0;}
+  .hero-top{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;}
+  .brand h1{font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:clamp(26px,6vw,36px);letter-spacing:0.07em;margin:0;color:var(--ink);text-shadow:0 0 22px rgba(232,163,61,0.28);}
+  .tagline{margin:6px 0 0;color:var(--muted);font-size:12.5px;letter-spacing:0.02em;}
+  .seed-block{display:flex;align-items:center;gap:6px;}
+  .seed-block label{font-size:10.5px;color:var(--muted);letter-spacing:0.1em;margin-right:2px;}
+  .seed-block input{width:112px;background:var(--panel);border:1px solid var(--border);color:var(--ink);padding:8px 9px;border-radius:4px;font-family:inherit;font-size:13px;}
+  .seed-block button{background:var(--panel);border:1px solid var(--border);color:var(--phosphor);padding:8px 11px;border-radius:4px;cursor:pointer;font-size:14px;}
+  .seed-block button:hover{border-color:var(--phosphor);}
+
+  .pipeline{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:18px;padding:12px 14px;background:var(--panel);border:1px solid var(--border);border-radius:6px;font-size:10.5px;letter-spacing:0.04em;color:var(--muted);}
+  .pipeline span:not(.arrow){color:var(--ink);white-space:nowrap;}
+  .pipeline .arrow{color:var(--phosphor);}
+  .pipeline em{color:var(--cyan);font-style:normal;}
+
+  .progression-strip{display:flex;flex-wrap:wrap;gap:6px;padding:16px 20px 0;}
+  .chord-cell{display:flex;flex-direction:column;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:5px;padding:6px 11px;min-width:40px;cursor:pointer;}
+  .chord-cell.anchor{border-color:var(--phosphor-dim);}
+  .chord-idx{font-size:9px;color:var(--muted);}
+  .chord-name{font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:14px;color:var(--ink);margin-top:2px;}
+  .chord-cell.anchor .chord-name{color:var(--phosphor);}
+  .chord-cell.locked{border-color:var(--cyan);}
+  .chord-cell:hover{border-color:var(--phosphor);}
+  .empty-strip{color:var(--muted);font-size:12px;padding:4px 0;}
+
+  .spectral-section{padding:16px 20px;}
+  .spectral-label{font-size:10.5px;letter-spacing:0.06em;color:var(--muted);margin-bottom:8px;text-transform:uppercase;}
+  .spectral-label .dim{color:var(--muted);text-transform:none;letter-spacing:0;}
+  #spectralCanvas{width:100%;min-height:120px;display:block;background:var(--void);border:1px solid var(--border);border-radius:6px;image-rendering:pixelated;}
+
+  .panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;padding:4px 20px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:16px 18px;}
+  @media (min-width: 1024px) {
+    .panels {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .panel[style*="grid-column"] {
+      grid-column: span 3 !important;
+    }
+  }
+  .panel h2{font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:11.5px;letter-spacing:0.1em;color:var(--phosphor);margin:0 0 14px;text-transform:uppercase;border-bottom:1px solid var(--border);padding-bottom:9px;}
+  .control{margin-bottom:15px;}
+  .control:last-child{margin-bottom:0;}
+  .control label{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted);margin-bottom:7px;text-transform:uppercase;letter-spacing:0.03em;}
+  .control label .val{color:var(--cyan);font-weight:600;text-transform:none;letter-spacing:0;}
+  .row2{display:flex;gap:8px;}
+  select{width:100%;background:var(--panel2);border:1px solid var(--border);color:var(--ink);padding:8px 9px;border-radius:4px;font-family:inherit;font-size:13px;}
+
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:4px;background:var(--border);border-radius:2px;outline:none;margin:0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--phosphor);box-shadow:0 0 9px rgba(232,163,61,0.65);cursor:pointer;border:2px solid var(--void);}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--phosphor);box-shadow:0 0 9px rgba(232,163,61,0.65);cursor:pointer;border:2px solid var(--void);}
+
+  #customFormantBlock, .subblock{display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);}
+
+  /* Drum Machine Styles */
+  .drum-machine { display: flex; flex-direction: column; gap: 10px; margin-bottom: 8px;}
+  .drum-row { display: flex; align-items: center; gap: 8px; }
+  .drum-label { width: 72px; font-size: 10px; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+  .drum-steps { display: grid; grid-template-columns: repeat(16, 1fr); gap: 4px; flex: 1; }
+  .drum-step { aspect-ratio: 1; background: var(--panel2); border: 1px solid var(--border); border-radius: 3px; cursor: pointer; min-height: 14px; }
+  .drum-step:nth-child(4n) { margin-right: 2px; }
+  .drum-step.active { background: var(--cyan); border-color: var(--cyan); box-shadow: 0 0 6px rgba(82, 214, 198, 0.4); }
+  .drum-step.has-custom-env {
+    border: 1px double var(--phosphor) !important;
+    box-shadow: 0 0 6px rgba(232, 163, 61, 0.7);
+  }
+  .cue-desc { font-size: 10px; color: var(--muted); line-height: 1.4; margin-top: 10px; font-style: italic; }
+
+  .popover-backdrop{position:fixed;inset:0;background:rgba(10,12,16,0.6);z-index:40;display:none;align-items:flex-end;justify-content:center;}
+  .popover-backdrop.open{display:flex;}
+  .popover-panel{background:var(--panel);border:1px solid var(--border);border-radius:10px 10px 0 0;padding:18px 20px 24px;width:100%;max-width:480px;}
+  .popover-panel h3{margin:0 0 14px;font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:12px;letter-spacing:0.1em;color:var(--phosphor);text-transform:uppercase;}
+  .popover-row{display:flex;gap:10px;margin-bottom:12px;}
+  .popover-row select{flex:1;}
+  .popover-actions{display:flex;gap:10px;justify-content:flex-end;}
+  .popover-actions button{font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:11.5px;padding:9px 14px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--ink);cursor:pointer;}
+
+  .transport{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 20px 30px;}
+  .transport button{font-family:'Space Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Courier New', monospace;font-size:11.5px;letter-spacing:0.07em;padding:11px 17px;border-radius:5px;border:1px solid var(--border);background:var(--panel);color:var(--ink);cursor:pointer;}
+  .transport button:hover:not(:disabled){border-color:var(--cyan);}
+  #generateBtn{border-color:var(--phosphor-dim);color:var(--phosphor);}
+  #generateBtn:hover{border-color:var(--phosphor);}
+  .transport button:disabled{opacity:0.35;cursor:not-allowed;}
+  .status{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap;}
+
+  footer{padding:6px 20px 26px;color:var(--muted);font-size:10.5px;line-height:1.6;}
+  footer b{color:var(--muted);}
+
+  @media (max-width:560px){
+    .panels{grid-template-columns:1fr;}
+    .status{margin-left:0;width:100%;}
+  }
+
+  .viz-tab.active {
+    border-color: var(--cyan) !important;
+    color: var(--cyan) !important;
+    box-shadow: 0 0 6px rgba(0, 240, 255, 0.2);
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-top">
+    <div class="brand">
+      <h1>EIDOLON</h1>
+      <p class="tagline">Volterra Spectral Series Synthesizer — nonlinear wave transformation</p>
+    </div>
+    <div class="seed-block">
+      <label>SEED</label>
+      <input type="number" id="seedInput" value="204899">
+      <button id="randSeedBtn" title="Randomize seed">⟲</button>
+    </div>
+  </div>
+  <div class="pipeline">
+    <span>RHYTHM CUES</span><span class="arrow">→</span><span>PROGRESSION</span><span class="arrow">→</span><span>CONTRAPOINT & PHRASE</span><span class="arrow">→</span><span>VOLTERRA SPECTRAL TRANSFORM</span><span class="arrow">→</span><span>WAVEFORM</span>
+  </div>
+</header>
+
+<section class="progression-strip" id="progressionStrip">
+  <div class="empty-strip">— press GENERATE to derive a progression —</div>
+</section>
+
+<div class="popover-backdrop" id="chordEditPopover">
+  <div class="popover-panel">
+    <h3>Edit chord</h3>
+
+    <div class="control">
+      <label>Scale Degree / State</label>
+      <select id="chordEditSelect"></select>
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Root Transposition (EDO steps)</label>
+      <input type="number" id="chordEditTranspose" value="0" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Quality Override</label>
+      <select id="chordEditQuality">
+        <option value="">(use default for state)</option>
+        <option value="maj">maj</option>
+        <option value="min">min</option>
+        <option value="dim">dim</option>
+        <option value="aug">aug</option>
+        <option value="dom7">dom7</option>
+        <option value="maj7">maj7</option>
+        <option value="min7">min7</option>
+        <option value="m7b5">m7b5</option>
+        <option value="dim7">dim7</option>
+      </select>
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Extensions (comma-separated, e.g. M9, P11)</label>
+      <input type="text" id="chordEditExtensions" placeholder="e.g. M9, P11" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+    </div>
+
+    <div class="popover-actions" style="margin-top:15px;">
+      <button type="button" id="chordEditLockBtn">🔓 lock</button>
+      <button type="button" id="chordEditClose">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="popover-backdrop" id="stepEnvPopover">
+  <div class="popover-panel">
+    <h3 id="stepEnvTitle">Edit Step Envelope</h3>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Step Attack Time <span class="val" id="stepAttackVal">0.27s</span></label>
+      <input type="range" id="stepAttackSlider" min="0.005" max="2.0" step="0.005" value="0.27">
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Step Release Time <span class="val" id="stepReleaseVal">0.91s</span></label>
+      <input type="range" id="stepReleaseSlider" min="0.01" max="4.0" step="0.01" value="0.91">
+    </div>
+
+    <div class="control" style="margin-top:10px;">
+      <label>Step Gain / Velocity <span class="val" id="stepGainVal">1.00x</span></label>
+      <input type="range" id="stepGainSlider" min="0.0" max="2.0" step="0.02" value="1.00">
+    </div>
+
+    <div class="popover-actions" style="margin-top:20px;">
+      <button type="button" id="stepEnvReset" style="border-color: var(--warn); color: var(--warn);">Reset to Global</button>
+      <button type="button" id="stepEnvSave" style="border-color: var(--cyan); color: var(--cyan);">Save</button>
+      <button type="button" id="stepEnvClose">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<section class="spectral-section">
+  <div class="spectral-label">SPECTRAL IMAGE <span class="dim">— Volterra Series Generated · harmonic index (↑) × time (→)</span></div>
+
+  <!-- Interactive Tonal Spectral Painting Dashboard -->
+  <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px; background:var(--panel); border:1px solid var(--border); padding:10px 14px; border-radius:6px;">
+    <!-- Row 1: Active Painting and Curve Selection Controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+      <span style="font-size:11px; font-weight:bold; color:var(--phosphor);">🎨 TONAL SPECTRAL PAINTING:</span>
+      <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="paintEnableCheckbox" style="accent-color:var(--cyan);"> Enable Painting overlay
+      </label>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:4px; color:var(--ink); cursor:pointer; user-select:none;">
+        <input type="checkbox" id="snapHarmonicCheckbox" style="accent-color:var(--cyan);" checked> Snap to Harmonic Grid
+      </label>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Active Curve:</span>
+      <select id="activeCurveSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="attractor">Tone Attractor (Boost/Draw)</option>
+        <option value="lowLimit">Low Frequency Limit (Filter)</option>
+        <option value="highLimit">High Frequency Limit (Filter)</option>
+      </select>
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <button type="button" id="resetActiveCurveBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Reset Active</button>
+      <button type="button" id="clearAllCurvesBtn" style="font-family:inherit; font-size:10px; padding:4px 8px; background:var(--panel2); border:1px solid var(--border); color:var(--warn); border-radius:3px; cursor:pointer;">Clear All</button>
+    </div>
+
+    <!-- Row 2: Resolution, Scaling, and Advanced Grid Adjustment Controls -->
+    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; border-top:1px dashed var(--border); padding-top:8px;">
+      <span style="font-size:11px; color:var(--muted);">Max Harmonics:</span>
+      <select id="maxHarmonicsSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="16">16 (Draft)</option>
+        <option value="24" selected>24 (Standard)</option>
+        <option value="32">32 (Enhanced)</option>
+        <option value="48">48 (High Res)</option>
+        <option value="64">64 (Ultra Res)</option>
+        <option value="96">96 (Extreme)</option>
+        <option value="128">128 (Maximum)</option>
+        <option value="256">256 (Hyper Res)</option>
+        <option value="512">512 (Extreme Res)</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Freq Scaling:</span>
+      <select id="freqScalingSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="linear" selected>Linear (Equal Spacing)</option>
+        <option value="logarithmic">Logarithmic (Perceptual)</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Grid Mode:</span>
+      <select id="gridModeSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="all" selected>All Harmonics</option>
+        <option value="consonant">Consonant Intervals Only</option>
+        <option value="stepAlign">EDO Step Aligned Only</option>
+        <option value="none">No Horizontal Grid</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <span style="font-size:11px; color:var(--muted);">Time Grid:</span>
+      <select id="timeGridSelect" style="width:auto; padding:2px 6px; font-size:11px; height:24px; background:var(--panel2); color:var(--ink); border:1px solid var(--border); border-radius:3px;">
+        <option value="bar" selected>Bar divisions</option>
+        <option value="beat">Beat divisions</option>
+        <option value="none">No Time Grid</option>
+      </select>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+        Attraction: <input type="range" id="attractStrengthSlider" min="0" max="1" step="0.05" value="0.60" style="width:60px; height:4px; margin:0;"> <span id="attractStrengthVal" style="color:var(--cyan); font-weight:600;">0.60</span>
+      </label>
+
+      <div style="height:14px; width:1px; background:var(--border);"></div>
+      <label style="font-size:11px; display:flex; align-items:center; gap:6px; color:var(--muted); user-select:none;">
+        Height: <input type="range" id="canvasHeightSlider" min="200" max="1200" step="10" value="800" style="width:80px; height:4px; margin:0;"> <span id="canvasHeightVal" style="color:var(--cyan); font-weight:600;">800px</span>
+      </label>
+    </div>
+  </div>
+
+  <canvas id="spectralCanvas"></canvas>
+</section>
+
+<div class="panels">
+
+  <div class="panel">
+    <h2>1 · Progression</h2>
+    <div class="control">
+      <label>Key</label>
+      <div class="row2">
+        <select id="rootSelect"></select>
+        <select id="modeSelect">
+          <option value="minor" selected>Minor</option>
+          <option value="major">Major</option>
+        </select>
+      </div>
+    </div>
+    <div class="control">
+      <label>Tuning</label>
+      <select id="tuningSelect"></select>
+    </div>
+    <div id="customTuningBlock" class="subblock">
+      <div class="control"><label>Custom EDO <span class="val" id="customEdoVal">12</span></label>
+        <input type="number" id="customEdoInput" min="5" max="72" step="1" value="12"></div>
+    </div>
+    <div class="control">
+      <label>Style</label>
+      <select id="styleSelect">
+        <option value="triads">Triads (classical)</option>
+        <option value="jazz" selected>Jazz (7ths + walking bass)</option>
+      </select>
+    </div>
+    <div id="jazzBlock" class="subblock" style="display:block;">
+      <div class="control">
+        <label>Secondary dominants <span class="val" id="secDomVal">0.40</span></label>
+        <input type="range" id="secDomSlider" min="0" max="1" step="0.01" value="0.40">
+      </div>
+      <div class="control">
+        <label>Tritone substitution <span class="val" id="tritoneSubVal">0.25</span></label>
+        <input type="range" id="tritoneSubSlider" min="0" max="1" step="0.01" value="0.25">
+      </div>
+      <div class="control">
+        <label>Extensions <span class="val" id="extensionVal">0.55</span></label>
+        <input type="range" id="extensionSlider" min="0" max="1" step="0.01" value="0.55">
+      </div>
+    </div>
+    <div class="control">
+      <label>Tempo <span class="val" id="tempoVal">88</span> BPM</label>
+      <input type="range" id="tempoSlider" min="60" max="160" step="1" value="88">
+    </div>
+    <div class="control">
+      <label>Bars <span class="val" id="barsVal">8</span></label>
+      <input type="range" id="barsSlider" min="4" max="128" step="1" value="8">
+    </div>
+    <div class="control">
+      <label>Tension / chromaticism <span class="val" id="tensionVal">0.18</span></label>
+      <input type="range" id="tensionSlider" min="0" max="1" step="0.01" value="0.18">
+    </div>
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+    <div class="control">
+      <label>Preceding Input Chord (Outside)</label>
+      <select id="inputChordSelect" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none">None (Default Tonic Start)</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Succeeding Output Chord (Next Outside)</label>
+      <select id="outputChordSelect" style="width:100%; background:var(--panel); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none">None (Default Tonic End)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>2 · Phrase Constraints &amp; Rhythm</h2>
+
+    <!-- 16-step PHRASE Rhythm Sequencer row -->
+    <div class="control">
+      <label>Melodic Rhythm Sequencer</label>
+      <div class="drum-machine">
+        <div class="drum-row">
+          <div class="drum-label" style="width:55px;">PHRASE</div>
+          <div class="drum-steps" id="phraseRhythmSteps"></div>
+        </div>
+      </div>
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Define direct active rhythm steps for the lead melody phrase.</span>
+    </div>
+
+    <div class="control">
+      <label>Tonal Distribution</label>
+      <select id="phraseTonalDistributionSelect">
+        <option value="chord_tones" selected>Pure Chord Tones</option>
+        <option value="diatonic_mos">Diatonic MOS Scale</option>
+        <option value="pentatonic">Pentatonic Mode</option>
+        <option value="chromatic">Chromatic / High Tension</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Octave Base Preference <span class="val" id="octaveBaseVal">2</span></label>
+      <input type="range" id="octaveBaseSlider" min="-1" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Octave Drift Limit <span class="val" id="octaveDriftVal">1</span></label>
+      <input type="range" id="octaveDriftSlider" min="0" max="3" step="1" value="1">
+    </div>
+
+    <div class="control">
+      <label>Motion Bias <span class="val" id="motionBiasVal">0.50</span></label>
+      <input type="range" id="motionBiasSlider" min="0" max="1" step="0.01" value="0.50">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">0 = stepwise scale movement, 1 = skip/arpeggiation.</span>
+    </div>
+
+    <div class="control">
+      <label>Directional Trend <span class="val" id="dirTrendVal">0.00</span></label>
+      <input type="range" id="dirTrendSlider" min="-1" max="1" step="0.05" value="0.00">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">-1 = downward bias, 0 = balanced, +1 = upward bias.</span>
+    </div>
+
+    <div class="control" style="margin-top:14px; border-top:1px dashed var(--border); padding-top:14px;">
+      <label>Leap bias <span class="val" id="leapVal">0.30</span></label>
+      <input type="range" id="leapSlider" min="0" max="1" step="0.01" value="0.30">
+    </div>
+    <div class="control">
+      <label>Rhythmic density <span class="val" id="densityVal">0.50</span></label>
+      <input type="range" id="densitySlider" min="0" max="1" step="0.01" value="0.50">
+    </div>
+
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+
+    <div class="control">
+      <label>Melodic Articulation <span class="val" id="phraseGateVal">0.80</span></label>
+      <input type="range" id="phraseGateSlider" min="0.10" max="1.50" step="0.05" value="0.80">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Staccato (0.1) vs. Legato/Overlapping (1.5).</span>
+    </div>
+
+    <div class="control">
+      <label>Rhythmic Groove</label>
+      <select id="phraseGrooveSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="straight" selected>Straight 16th Notes</option>
+        <option value="swing">Light Swing / Shuffle</option>
+        <option value="triplet">Triplet / Sextuplet Feel</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Ornamentation Prob <span class="val" id="ornamentVal">0.15</span></label>
+      <input type="range" id="ornamentSlider" min="0" max="1" step="0.05" value="0.15">
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Trills, grace notes, and rapid double-triggers.</span>
+    </div>
+
+    <div class="control">
+      <label>Motif Development</label>
+      <select id="motifDevSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="none" selected>Through-Composed (None)</option>
+        <option value="repeat">Motif Repetition (1 Bar)</option>
+        <option value="transpose">Transposed Repetition</option>
+        <option value="invert">Inverted Call-and-Response</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3 · Master Cues (Seeds)</h2>
+    <div class="drum-machine" id="drumMachineUI">
+      </div>
+    <div class="cue-desc">
+      * Matrix triggers event data, not direct audio. <br>
+      B_ROOT: Seeds bass roots (groove core).<br>
+      M_ANCH: Anchors lead melody on strategic beats.<br>
+      PASSING: Triggers diatonic/rhythmic passing tones.<br>
+      ARPEGG: Controls melody arpeggiation behavior.<br>
+      SYNCOP: Triggers groovy syncopated off-beats.<br>
+      CH_PULSE: Directs chord pad rhythmic gating pulses.
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>4 · Volterra Series Generator</h2>
+
+    <div class="control">
+      <label>Synthesis Fidelity</label>
+      <select id="fidelitySelect">
+        <option value="draft">Draft (Low Latency / 0.05s steps)</option>
+        <option value="standard" selected>Standard (Balanced / 0.025s steps)</option>
+        <option value="high">High Fidelity (Precise / 0.015s steps)</option>
+        <option value="ultra">Ultra HQ (Maximum resolution / 0.01s steps)</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Volterra Series Max Order</label>
+      <select id="volterraOrderSelect">
+        <option value="1">1st-Order (Linear Filtering)</option>
+        <option value="2" selected>2nd-Order (Quadratic Nonlinear)</option>
+        <option value="3">3rd-Order (Cubic / Comprehensive)</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label>Time Memory Lag (τ_max) <span class="val" id="timeLagVal">2</span></label>
+      <input type="range" id="timeLagSlider" min="0" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Frequency Memory Lag (κ_max) <span class="val" id="freqLagVal">2</span></label>
+      <input type="range" id="freqLagSlider" min="0" max="4" step="1" value="2">
+    </div>
+
+    <div class="control">
+      <label>Linear scaling (C1) <span class="val" id="c1Val">1.00</span></label>
+      <input type="range" id="c1Slider" min="0" max="2" step="0.05" value="1.00">
+    </div>
+
+    <div class="control">
+      <label>Quadratic scaling (C2) <span class="val" id="c2Val">0.45</span></label>
+      <input type="range" id="c2Slider" min="0" max="2" step="0.05" value="0.45">
+    </div>
+
+    <div class="control">
+      <label>Cubic scaling (C3) <span class="val" id="c3Val">0.20</span></label>
+      <input type="range" id="c3Slider" min="0" max="2" step="0.05" value="0.20">
+    </div>
+
+    <div class="control">
+      <label>Temporal Decay (α) <span class="val" id="tempDecayVal">0.50</span></label>
+      <input type="range" id="tempDecaySlider" min="0" max="2" step="0.05" value="0.50">
+    </div>
+
+    <div class="control">
+      <label>Spectral Decay (β) <span class="val" id="specDecayVal">0.40</span></label>
+      <input type="range" id="specDecaySlider" min="0" max="2" step="0.05" value="0.40">
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>5 · Spectral evolution</h2>
+    <div class="control">
+      <label>Base Distribution</label>
+      <select id="distributionSelect">
+        <option value="gaussian">Gaussian — smooth</option>
+        <option value="laplace">Laplacian — jumpier</option>
+        <option value="uniform">Uniform — flat / harsh</option>
+        <option value="cauchy">Cauchy — heavy-tailed lurches</option>
+        <option value="bimodal">Bimodal — flickers between two poles</option>
+        <option value="custom_markov" selected>Custom Editable Markov Matrix</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Volatility <span class="val" id="volatilityVal">0.35</span></label>
+      <input type="range" id="volatilitySlider" min="0" max="1" step="0.01" value="0.35">
+    </div>
+    <div class="control">
+      <label>Richness / wander <span class="val" id="richnessVal">0.40</span></label>
+      <input type="range" id="richnessSlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+
+    <!-- Spectral evolution drum machine sequencer -->
+    <div class="control" style="margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+      <label>Spectral Rhythm Sequencer</label>
+      <div class="drum-machine">
+        <div class="drum-row">
+          <div class="drum-label" style="width:55px;">TRIG</div>
+          <div class="drum-steps" id="spectralRhythmSteps"></div>
+        </div>
+      </div>
+      <span style="font-size:10px; color:var(--muted); display:block; margin-top:4px;">Active steps trigger state mutation/harmonic excitation.</span>
+    </div>
+
+    <!-- 7x7 Markov Matrix UI -->
+    <div id="markovMatrixBlock" style="display:block; margin-top:14px; padding-top:14px; border-top:1px dashed var(--border);">
+      <label style="font-size:11.5px; color:var(--muted); text-transform:uppercase; display:block; margin-bottom:8px;">7x7 Markov Transition Weights</label>
+      <div style="display:grid; grid-template-columns: repeat(8, 1fr); gap:3px;" id="markovGridContainer">
+        <!-- populated dynamically via JS -->
+      </div>
+      <button type="button" id="normalizeMarkovBtn" style="font-family:'Space Mono', ui-monospace, monospace; font-size:10px; padding:6px 10px; border-radius:4px; border:1px solid var(--border); background:var(--panel2); color:var(--phosphor); cursor:pointer; width:100%; margin-top:8px;">Normalize transition rows</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>6 · Envelope &amp; space</h2>
+    <div class="control">
+      <label>Attack <span class="val" id="attackVal">0.27s</span></label>
+      <input type="range" id="attackSlider" min="0" max="1" step="0.01" value="0.30">
+    </div>
+    <div class="control">
+      <label>Release <span class="val" id="releaseVal">0.91s</span></label>
+      <input type="range" id="releaseSlider" min="0" max="1" step="0.01" value="0.40">
+    </div>
+    <div class="control">
+      <label>Brightness <span class="val" id="brightnessVal">0.45</span></label>
+      <input type="range" id="brightnessSlider" min="0" max="1" step="0.01" value="0.45">
+    </div>
+    <div class="control">
+      <label>Space (reverb) <span class="val" id="spaceVal">0.28</span></label>
+      <input type="range" id="spaceSlider" min="0" max="1" step="0.01" value="0.28">
+    </div>
+    <div class="control">
+      <label>Output gain <span class="val" id="gainVal">0.80</span></label>
+      <input type="range" id="gainSlider" min="0" max="1" step="0.01" value="0.80">
+    </div>
+    <div style="height:1px; background:var(--border); margin:15px 0;"></div>
+    <div class="control">
+      <label>Synthesis Sample Rate</label>
+      <select id="sampleRateSelect" style="width:100%; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:inherit; font-size:13px;">
+        <option value="22050">22050 Hz (High Resolution Low Bands)</option>
+        <option value="32000" selected>32000 Hz (Balanced Standard)</option>
+        <option value="44100">44100 Hz (CD Quality)</option>
+        <option value="48000">48000 Hz (Pro Audio Studio)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel" style="grid-column: span var(--grid-span, 1);">
+    <h2>7 · Contrapoint Note Editor</h2>
+    <div class="control">
+      <label>Surgically Edit Phrase/Bass/Pad Notes (JSON)</label>
+      <textarea id="noteEditorArea" style="width:100%; height:180px; background:var(--panel2); border:1px solid var(--border); color:var(--ink); padding:8px 9px; border-radius:4px; font-family:'IBM Plex Mono', ui-monospace, 'Cascadia Code', monospace; font-size:11px; resize:vertical;" placeholder="No notes loaded. Press Generate first."></textarea>
+      <span style="font-size:10.5px; color:var(--muted); display:block; margin-top:4px;">Directly modify startBeat, durBeats, steps (EDO scale units) to bypass intermediate algorithms.</span>
+    </div>
+    <button type="button" id="updateFromNoteEditorBtn" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:8px 12px; border-radius:4px; border:1px solid var(--border); background:var(--panel2); color:var(--cyan); cursor:pointer; width:100%; margin-top:8px;">⚡ UPDATE WAVEFORM FROM NOTE EDITOR</button>
+  </div>
+
+  <div class="panel" style="grid-column: span var(--grid-span, 1);">
+    <h2>8 · Intermediate Generation Visualizer</h2>
+    <div style="display:flex; gap:10px; margin-bottom:12px;">
+      <button type="button" id="vizTabProgression" class="viz-tab active" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:6px 12px; background:var(--panel2); border:1px solid var(--border); color:var(--ink); cursor:pointer; border-radius:4px;">Progression Flow</button>
+      <button type="button" id="vizTabPhrase" class="viz-tab" style="font-family:'Space Mono', ui-monospace, monospace; font-size:11px; padding:6px 12px; background:var(--panel2); border:1px solid var(--border); color:var(--muted); cursor:pointer; border-radius:4px;">Melody Phrase Decisions</button>
+    </div>
+
+    <div id="vizContentProgression" style="max-height:280px; overflow-y:auto; background:var(--panel2); border:1px solid var(--border); border-radius:4px; padding:12px; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:11px; line-height:1.5;">
+      <div style="color:var(--muted); font-style:italic;">No progression generated yet. Click GENERATE to inspect.</div>
+    </div>
+
+    <div id="vizContentPhrase" style="max-height:280px; overflow-y:auto; background:var(--panel2); border:1px solid var(--border); border-radius:4px; padding:12px; font-family:'IBM Plex Mono', ui-monospace, monospace; font-size:11px; line-height:1.5; display:none;">
+      <div style="color:var(--muted); font-style:italic;">No phrase generated yet. Click GENERATE to inspect.</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="transport">
+  <button id="generateBtn">GENERATE</button>
+  <button id="playBtn" disabled>▶ PLAY</button>
+  <button id="stopBtn" disabled>■ STOP</button>
+  <button id="exportBtn" disabled>⇩ EXPORT WAV</button>
+  <div class="status" id="statusLine">seed a progression to begin</div>
+</div>
+
+<footer>
+  <b>Volterra Spectral Series Architecture:</b> The spectral visualizer and additive synth voice amplitudes are driven directly by a 2D discrete Volterra system. Raw Markov chain state arrays are fed into linear, quadratic, and cubic operators across both temporal and harmonic dimensions to create natural organic non-linear evolution.
+</footer>
+
+<script>
+'use strict';
+
+/* =========================================================================
+   1. UTILITIES — seeded RNG, math helpers, sine LUT
+   ========================================================================= */
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+class RNG {
+  constructor(seed) { this.seed = seed >>> 0; this._f = mulberry32(this.seed); }
+  next() { return this._f(); }
+  range(a, b) { return a + this.next() * (b - a); }
+  weightedIndex(weights) {
+    let total = 0;
+    for (let i = 0; i < weights.length; i++) total += weights[i];
+    if (!(total > 0)) return 0;
+    let r = this.next() * total;
+    for (let i = 0; i < weights.length; i++) {
+      r -= weights[i];
+      if (r <= 0) return i;
+    }
+    return weights.length - 1;
+  }
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function getNormYForHarmBound(kBound, maxHarm, scaling) {
+  if (scaling === 'logarithmic') {
+    const logMin = Math.log(0.5);
+    const logMax = Math.log(maxHarm + 0.5);
+    return (Math.log(kBound) - logMin) / (logMax - logMin);
+  }
+  return (kBound - 0.5) / maxHarm;
+}
+
+function getHarmBoundFromNormY(normY, maxHarm, scaling) {
+  if (scaling === 'logarithmic') {
+    const logMin = Math.log(0.5);
+    const logMax = Math.log(maxHarm + 0.5);
+    const logVal = logMin + normY * (logMax - logMin);
+    return Math.exp(logVal);
+  }
+  return 0.5 + normY * maxHarm;
+}
+
+function updateExternalChordsSelects(states) {
+  const inputSel = document.getElementById('inputChordSelect');
+  const outputSel = document.getElementById('outputChordSelect');
+  if (!inputSel || !outputSel) return;
+  const savedInputVal = inputSel.value;
+  const savedOutputVal = outputSel.value;
+
+  inputSel.innerHTML = '<option value="none">None (Default Tonic Start)</option>';
+  outputSel.innerHTML = '<option value="none">None (Default Tonic End)</option>';
+
+  states.forEach((st, idx) => {
+    const optIn = document.createElement('option');
+    optIn.value = idx;
+    optIn.textContent = `${idx + 1}: ${st.name}`;
+    inputSel.appendChild(optIn);
+
+    const optOut = document.createElement('option');
+    optOut.value = idx;
+    optOut.textContent = `${idx + 1}: ${st.name}`;
+    outputSel.appendChild(optOut);
+  });
+
+  if ([...inputSel.options].some(o => o.value === savedInputVal)) {
+    inputSel.value = savedInputVal;
+  }
+  if ([...outputSel.options].some(o => o.value === savedOutputVal)) {
+    outputSel.value = savedOutputVal;
+  }
+}
+
+function evaluateBezier(x, p0, p1, p2, p3) {
+  let low = 0, high = 1;
+  for (let i = 0; i < 12; i++) {
+    const mid = (low + high) * 0.5;
+    const om = 1 - mid;
+    const xc = om * om * om * p0.x + 3 * om * om * mid * p1.x + 3 * om * mid * mid * p2.x + mid * mid * mid * p3.x;
+    if (xc < x) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+  const u = (low + high) * 0.5;
+  const om = 1 - u;
+  return om * om * om * p0.y + 3 * om * om * u * p1.y + 3 * om * u * u * p2.y + u * u * u * p3.y;
+}
+
+function normalizeRows(rows) {
+  return rows.map(row => {
+    let sum = 0;
+    for (const v of row) sum += v;
+    if (sum === 0) return row.map(() => 1 / row.length);
+    return row.map(v => v / sum);
+  });
+}
+function buildChromaticMatrix(n, boostIdx, boostAmt) {
+  const rows = [];
+  for (let i = 0; i < n; i++) {
+    const row = new Array(n);
+    for (let j = 0; j < n; j++) row[j] = (j === i ? 0.4 : 1.0) + (boostIdx.includes(j) ? boostAmt : 0);
+    rows.push(row);
+  }
+  return rows;
+}
+
+const SINE_TABLE_SIZE = 4096;
+const SINE_TABLE = new Float32Array(SINE_TABLE_SIZE);
+for (let i = 0; i < SINE_TABLE_SIZE; i++) SINE_TABLE[i] = Math.sin(2 * Math.PI * i / SINE_TABLE_SIZE);
+const SINE_SHIFT = SINE_TABLE_SIZE >> 2;
+function lutCos(phase) {
+  let p = (phase / (2 * Math.PI)) % 1;
+  if (p < 0) p += 1;
+  const idxF = p * SINE_TABLE_SIZE;
+  const i0 = idxF | 0;
+  const i1 = (i0 + 1) % SINE_TABLE_SIZE;
+  const frac = idxF - i0;
+  const j0 = (i0 + SINE_SHIFT) % SINE_TABLE_SIZE;
+  const j1 = (i1 + SINE_SHIFT) % SINE_TABLE_SIZE;
+  return SINE_TABLE[j0] * (1 - frac) + SINE_TABLE[j1] * frac;
+}
+
+/* =========================================================================
+   2. MUSIC THEORY
+   ========================================================================= */
+
+const NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
+
+const TUNING_SYSTEMS = {
+  12: '12-EDO (standard)', 17: '17-EDO', 19: '19-EDO', 22: '22-EDO',
+  24: '24-EDO (quarter-tone)', 31: '31-EDO (meantone)', 41: '41-EDO', 53: '53-EDO (near-just)',
+};
+
+function generateDiatonicMOS(edo) {
+  const generatorSteps = Math.round(edo * Math.log2(3 / 2));
+  const start = ((0 - generatorSteps) % edo + edo) % edo;
+  const notes = []; let acc = start;
+  for (let i = 0; i < 7; i++) { notes.push(acc); acc = (acc + generatorSteps) % edo; }
+  return { generatorSteps, scale: notes.sort((a, b) => a - b) };
+}
+function rotateMOSToMode(mosScale, edo, modeRotation) {
+  const anchor = mosScale[modeRotation];
+  const rotated = [];
+  for (let i = 0; i < 7; i++) rotated.push(((mosScale[(modeRotation + i) % 7] - anchor) % edo + edo) % edo);
+  return rotated.sort((a, b) => a - b);
+}
+function buildTuning(edo, modeRotation) {
+  const { generatorSteps, scale: ionianScale } = generateDiatonicMOS(edo);
+  const scale = modeRotation === 0 ? ionianScale : rotateMOSToMode(ionianScale, edo, modeRotation);
+  const steps = [];
+  for (let i = 0; i < 7; i++) { const next = scale[(i + 1) % 7] + (i === 6 ? edo : 0); steps.push(next - scale[i]); }
+  const minStep = Math.min(...steps);
+  const maxStep = Math.max(...steps);
+  const smallStep = minStep > 0 ? minStep : 1;
+  const largeStep = maxStep > 0 ? maxStep : 1;
+  return { edo, generatorSteps, scale, smallStep, largeStep };
+}
+
+const INTERVAL_CENTS = {
+  R: 0, m3: 315.6, M3: 386.3, P4: 498.0, TT: 600.0, P5: 702.0,
+  m6: 813.7, M6: 884.4, m7: 968.8, M7: 1088.3,
+  m9: 1300.0, M9: 1403.9, s9: 1515.6, P11: 1698.0, s11: 1751.3, M13: 2084.4, b13: 2013.7,
+};
+const CHORD_QUALITY_TONES = {
+  maj: ['R','M3','P5'], min: ['R','m3','P5'], dim: ['R','m3','TT'], aug: ['R','M3','m6'],
+  dom7: ['R','M3','P5','m7'], maj7: ['R','M3','P5','M7'], min7: ['R','m3','P5','m7'],
+  m7b5: ['R','m3','TT','m7'], dim7: ['R','m3','TT','M6'],
+};
+function centsToSteps(cents, edo) { return Math.round(cents / 1200 * edo); }
+
+function getDiatonicStep(fromDegree, toDegree, tuning) {
+  let step = tuning.scale[toDegree] - tuning.scale[fromDegree];
+  if (toDegree < fromDegree) step += tuning.edo;
+  return step;
+}
+
+function resolveChordTones(st, tuning, extensions, isTritoneSub) {
+  const edo = tuning.edo;
+  const degree = st.degree !== undefined ? st.degree : 0;
+
+  // Base diatonic steps stacked from scale degrees
+  const t3_diatonic = getDiatonicStep(degree, (degree + 2) % 7, tuning);
+  const t5_diatonic = getDiatonicStep(degree, (degree + 4) % 7, tuning);
+  const t7_diatonic = getDiatonicStep(degree, (degree + 6) % 7, tuning);
+
+  let root = 0;
+  let t3 = t3_diatonic;
+  let t5 = t5_diatonic;
+  let t7 = t7_diatonic;
+
+  // Chromatic and modal qualities override
+  const quality = st.quality;
+  if (st.isSecondaryDominant || isTritoneSub || quality === 'dom7') {
+    t3 = centsToSteps(386.3, edo);
+    t5 = centsToSteps(702.0, edo);
+    t7 = centsToSteps(968.8, edo);
+  } else if (quality === 'maj7' || quality === 'maj') {
+    t3 = centsToSteps(386.3, edo);
+    t5 = t5_diatonic;
+    t7 = centsToSteps(1088.3, edo);
+  } else if (quality === 'min7' || quality === 'min') {
+    t3 = centsToSteps(315.6, edo);
+    t5 = t5_diatonic;
+    t7 = centsToSteps(968.8, edo);
+  } else if (quality === 'm7b5' || quality === 'dim') {
+    t3 = centsToSteps(315.6, edo);
+    t5 = centsToSteps(600.0, edo);
+    t7 = centsToSteps(968.8, edo);
+  } else if (quality === 'dim7') {
+    t3 = centsToSteps(315.6, edo);
+    t5 = centsToSteps(600.0, edo);
+    t7 = centsToSteps(884.4, edo);
+  } else if (quality === 'aug') {
+    t3 = centsToSteps(386.3, edo);
+    t5 = centsToSteps(813.7, edo);
+  }
+
+  const baseTones = [root, t3, t5];
+  if (quality !== 'maj' && quality !== 'min' && quality !== 'dim' && quality !== 'aug') {
+    baseTones.push(t7);
+  }
+
+  const extTones = (extensions || []).map(ext => {
+    if (ext === 'M9' || ext === 'm9' || ext === 's9') {
+      return getDiatonicStep(degree, (degree + 1) % 7, tuning) + edo;
+    }
+    if (ext === 'P11' || ext === 's11') {
+      return getDiatonicStep(degree, (degree + 3) % 7, tuning) + edo;
+    }
+    if (ext === 'M13' || ext === 'b13') {
+      return getDiatonicStep(degree, (degree + 5) % 7, tuning) + edo;
+    }
+    const cents = INTERVAL_CENTS[ext];
+    if (cents !== undefined) {
+      return centsToSteps(cents, edo);
+    }
+    return 0;
+  });
+
+  return baseTones.concat(extTones);
+}
+
+const EXTENSION_POOLS = {
+  dom7: [['M9','m9','s9'], ['s11'], ['M13','b13']],
+  maj7: [['M9'], ['s11'], ['M13']],
+  min7: [['M9'], ['P11'], ['M13']],
+  m7b5: [['M9']],
+};
+function addExtensions(qualityKey, rng, density) {
+  const groups = EXTENSION_POOLS[qualityKey] || [];
+  const chosen = [];
+  for (const group of groups) {
+    if (rng.next() < density) {
+      const idx = group.length === 1 ? 0 : rng.weightedIndex(group.map((_, i) => i === 0 ? 2 : 1));
+      chosen.push(group[idx]);
+    }
+  }
+  return chosen;
+}
+
+const MAJOR_STATE_DEFS = [
+  { name:'I', numeral:'I', degree:0, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'ii', numeral:'ii', degree:1, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'iii', numeral:'iii', degree:2, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'IV', numeral:'IV', degree:3, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'V7', numeral:'V', degree:4, chromaticShift:0, triadQ:'dom7',jazzQ:'dom7' },
+  { name:'vi', numeral:'vi', degree:5, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'vii°', numeral:'vii°', degree:6, chromaticShift:0, triadQ:'dim', jazzQ:'m7b5' },
+  { name:'bVII', numeral:'bVII', degree:6, chromaticShift:-1, triadQ:'maj', jazzQ:'dom7' },
+  { name:'iv', numeral:'iv', degree:3, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+];
+const MINOR_STATE_DEFS = [
+  { name:'i', numeral:'i', degree:0, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'ii°', numeral:'ii°', degree:1, chromaticShift:0, triadQ:'dim', jazzQ:'m7b5' },
+  { name:'III', numeral:'III', degree:2, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'iv', numeral:'iv', degree:3, chromaticShift:0, triadQ:'min', jazzQ:'min7' },
+  { name:'V7', numeral:'V', degree:4, chromaticShift:0, triadQ:'dom7',jazzQ:'dom7' },
+  { name:'VI', numeral:'VI', degree:5, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+  { name:'vii°', numeral:'vii°', degree:6, chromaticShift:1, triadQ:'dim', jazzQ:'m7b5' },
+  { name:'VII', numeral:'VII', degree:6, chromaticShift:0, triadQ:'maj', jazzQ:'dom7' },
+  { name:'IV', numeral:'IV', degree:3, chromaticShift:0, triadQ:'maj', jazzQ:'maj7' },
+];
+const MAJOR_CONSONANT_BASE = [
+  [1,2,1,3,4,2,0,0,0],[1,0,0,1,5,1,1,0,0],[2,1,0,2,0,3,0,0,0],[3,2,1,0,4,0,1,0,0],
+  [5,0,1,1,0,2,0,0,0],[1,3,0,3,2,0,0,0,0],[5,0,1,0,1,0,0,0,0],[2,0,0,2,2,1,0,0,0],[2,0,0,0,2,1,0,1,0],
+];
+const MINOR_CONSONANT_BASE = [
+  [1,2,2,3,4,2,0,0,0],[4,0,1,1,3,0,0,0,0],[1,1,0,2,0,3,0,0,0],[3,1,1,0,4,0,1,0,0],
+  [6,0,1,0,0,2,0,0,0],[1,3,0,3,2,0,0,0,0],[5,0,1,0,1,0,0,0,0],[1,0,1,2,1,3,0,0,0],[2,1,0,0,3,0,0,0,1],
+];
+const MAJOR_SECONDARY_TARGETS = [1, 2, 3, 4, 5];
+const MINOR_SECONDARY_TARGETS = [2, 3, 4, 5, 7];
+
+function buildStateList(baseDefs, secondaryTargets, jazzEnabled) {
+  const states = baseDefs.map(d => ({
+    name: d.name, numeral: d.numeral, degree: d.degree, chromaticShift: d.chromaticShift || 0,
+    quality: jazzEnabled ? d.jazzQ : d.triadQ, isSecondaryDominant: false,
+  }));
+  if (jazzEnabled) {
+    secondaryTargets.forEach(targetIdx => {
+      states.push({
+        name: 'V7/' + baseDefs[targetIdx].numeral,
+        secondaryDominantOfIndex: targetIdx,
+        degree: (baseDefs[targetIdx].degree + 4) % 7,
+        quality: 'dom7',
+        isSecondaryDominant: true
+      });
+    });
+  }
+  return states;
+}
+function buildProgressionMatrices(baseConsonantRaw, numBase, secondaryTargets, jazzEnabled, secDomWeight) {
+  const n = jazzEnabled ? numBase + secondaryTargets.length : numBase;
+  const consonant = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (let i = 0; i < numBase; i++) for (let j = 0; j < numBase; j++) consonant[i][j] = baseConsonantRaw[i][j];
+  if (jazzEnabled) {
+    secondaryTargets.forEach((targetIdx, k) => {
+      const stateIdx = numBase + k;
+      consonant[stateIdx][targetIdx] = 8;
+      for (let j = 0; j < numBase; j++) if (j !== targetIdx) consonant[stateIdx][j] = 0.15;
+      for (let i = 0; i < numBase; i++) if (i !== targetIdx) consonant[i][stateIdx] = secDomWeight;
+    });
+  }
+  const chromatic = buildChromaticMatrix(n, [7, 8], 1.8);
+  return { consonant: normalizeRows(consonant), chromatic: normalizeRows(chromatic), size: n };
+}
+function resolveChordRootSteps(stateIdx, states, tuning) {
+  const st = states[stateIdx];
+  if (st.isSecondaryDominant) return resolveChordRootSteps(st.secondaryDominantOfIndex, states, tuning) + tuning.generatorSteps;
+  return tuning.scale[st.degree] + (st.chromaticShift || 0) * tuning.smallStep;
+}
+
+function generateProgressionIndices(rng, matrices, tension, numChords, lockedMap, inputChordIdx, outputChordIdx) {
+  const n = matrices.size;
+  const seq = new Array(numChords);
+
+  if (lockedMap && lockedMap[0] !== undefined) {
+    seq[0] = lockedMap[0];
+  } else if (inputChordIdx !== undefined && inputChordIdx !== null && inputChordIdx !== 'none') {
+    const startIdx = parseInt(inputChordIdx);
+    const row = new Float64Array(n);
+    for (let j = 0; j < n; j++) row[j] = (1 - tension) * matrices.consonant[startIdx][j] + tension * matrices.chromatic[startIdx][j];
+    seq[0] = rng.weightedIndex(row);
+  } else {
+    seq[0] = 0;
+  }
+
+  intermediateLog.progression = [];
+  intermediateLog.progression.push({
+    step: 0,
+    prevIndex: -1,
+    row: null,
+    selectedIndex: seq[0],
+    isLocked: (lockedMap && lockedMap[0] !== undefined)
+  });
+
+  for (let i = 1; i < numChords; i++) {
+    if (lockedMap && lockedMap[i] !== undefined) {
+      seq[i] = lockedMap[i];
+      intermediateLog.progression.push({
+        step: i,
+        prevIndex: seq[i - 1],
+        row: null,
+        selectedIndex: seq[i],
+        isLocked: true
+      });
+      continue;
+    }
+    const prev = seq[i - 1];
+    const row = new Float64Array(n);
+    for (let j = 0; j < n; j++) row[j] = (1 - tension) * matrices.consonant[prev][j] + tension * matrices.chromatic[prev][j];
+    seq[i] = rng.weightedIndex(row);
+
+    intermediateLog.progression.push({
+      step: i,
+      prevIndex: prev,
+      row: Array.from(row),
+      selectedIndex: seq[i],
+      isLocked: false
+    });
+  }
+  if (numChords > 1 && !(lockedMap && lockedMap[numChords - 1] !== undefined)) {
+    if (outputChordIdx !== undefined && outputChordIdx !== null && outputChordIdx !== 'none') {
+      const prev = seq[numChords - 2];
+      const target = parseInt(outputChordIdx);
+      const row = new Float64Array(n);
+      let sum = 0;
+      for (let k = 0; k < n; k++) {
+        const transFromPrev = (1 - tension) * matrices.consonant[prev][k] + tension * matrices.chromatic[prev][k];
+        const transToTarget = (1 - tension) * matrices.consonant[k][target] + tension * matrices.chromatic[k][target];
+        row[k] = transFromPrev * transToTarget;
+        sum += row[k];
+      }
+      if (sum > 0) {
+        seq[numChords - 1] = rng.weightedIndex(row);
+        const lastLog = intermediateLog.progression[numChords - 1];
+        if (lastLog) {
+          lastLog.selectedIndex = seq[numChords - 1];
+          lastLog.forcedTonic = false;
+        }
+      } else {
+        seq[numChords - 1] = 0;
+      }
+    } else {
+      seq[numChords - 1] = 0;
+      const lastLog = intermediateLog.progression[numChords - 1];
+      if (lastLog) {
+        lastLog.forcedTonic = true;
+        lastLog.selectedIndex = 0;
+      }
+    }
+  }
+  return seq;
+}
+function resolveChords(stateIndices, states, tuning, rng, jazzParams) {
+  const semitone_steps = Math.max(1, centsToSteps(100, tuning.edo));
+  return stateIndices.map((idx, stepIdx) => {
+    const st = states[idx];
+    let rootSteps = resolveChordRootSteps(idx, states, tuning);
+    let quality = st.quality;
+    let name = st.name;
+    let tritoneSubbed = false;
+
+    if (jazzParams.enabled && quality === 'dom7' && rng.next() < jazzParams.tritoneSubChance) {
+      tritoneSubbed = true;
+      name = 'sub' + name;
+      let targetRoot = 0;
+      if (st.isSecondaryDominant) {
+        targetRoot = resolveChordRootSteps(st.secondaryDominantOfIndex, states, tuning);
+      } else {
+        targetRoot = 0;
+      }
+      rootSteps = targetRoot + semitone_steps;
+    }
+
+    const extensions = jazzParams.enabled ? addExtensions(quality, rng, jazzParams.extensionDensity) : [];
+    const toneSteps = resolveChordTones(st, tuning, extensions, tritoneSubbed);
+
+    // Save resolved info to intermediate log
+    if (intermediateLog.progression[stepIdx]) {
+      intermediateLog.progression[stepIdx].resolvedName = name;
+      intermediateLog.progression[stepIdx].rootSteps = rootSteps;
+      intermediateLog.progression[stepIdx].toneSteps = [...toneSteps];
+      intermediateLog.progression[stepIdx].extensions = [...extensions];
+      intermediateLog.progression[stepIdx].tritoneSubbed = tritoneSubbed;
+    }
+
+    return { name, rootSteps, toneSteps, quality, stateIndex: idx, tritoneSubbed, extensions };
+  });
+}
+
+/* =========================================================================
+   3. CUE-DRIVEN CONTRAPOINT (BASS & LEAD)
+   ========================================================================= */
+
+const LEAD_OCTAVES = 2, PAD_OCTAVES = 1, BASS_OCTAVES = -1;
+const DEGREE_LO = -6, DEGREE_HI = 13;
+
+function degreeIndexToSteps(degreeIndex, tuning) {
+  const len = tuning.scale.length;
+  const octave = Math.floor(degreeIndex / len);
+  const within = ((degreeIndex % len) + len) % len;
+  return octave * tuning.edo + tuning.scale[within];
+}
+function nearestChordToneSteps(rawSteps, chord, edo) {
+  let best = null, bestDist = Infinity;
+  for (let oct = -1; oct <= 1; oct++) for (const iv of chord.toneSteps) {
+    const cand = chord.rootSteps + iv + oct * edo;
+    const dist = Math.abs(cand - rawSteps);
+    if (dist < bestDist) { bestDist = dist; best = cand; }
+  }
+  return best;
+}
+
+function getPentatonicSteps(tuning) {
+  const pentDegrees = [0, 1, 2, 4, 5];
+  return pentDegrees.map(deg => tuning.scale[deg % tuning.scale.length]);
+}
+
+// Melody phrase driven directly by the custom Phrase Rhythm Sequencer and advanced constraints
+function generatePhrase(rng, chords, beatsPerBar, p, tuning) {
+  const notes = [];
+  const total16ths = chords.length * beatsPerBar * 4;
+
+  let lastPitchSteps = 0;
+  let isFirstNote = true;
+
+  intermediateLog.phrase = [];
+
+  const motif16ths = beatsPerBar * 4;
+  const motifPattern = new Array(motif16ths).fill(null);
+
+  for (let step = 0; step < total16ths; step++) {
+    const stepIdx = step % 32;
+    const triggerActive = p.phraseRhythmCues && p.phraseRhythmCues[stepIdx];
+
+    if (triggerActive) {
+      const beatPos = step * 0.25;
+      const chordIdx = Math.min(chords.length - 1, Math.floor(beatPos / beatsPerBar));
+      const chord = chords[chordIdx];
+
+      let timingOffset = 0;
+      if (p.phraseGroove === 'swing' && (step % 2 === 1)) {
+        timingOffset = 1.0 / 24.0;
+      } else if (p.phraseGroove === 'triplet') {
+        const substep = step % 4;
+        if (substep === 1) timingOffset = -1.0 / 24.0;
+        else if (substep === 3) timingOffset = 1.0 / 24.0;
+      }
+
+      const dur16ths = (p.density > 0.7) ? 1 : 2;
+      const baseDur = dur16ths * 0.25;
+      const durBeats = baseDur * (p.phraseGate !== undefined ? p.phraseGate : 0.80);
+
+      const motifStep = step % motif16ths;
+      let forceMotifValue = null;
+      let isMotifActive = p.motifDev !== 'none' && step >= motif16ths;
+
+      if (isMotifActive && motifPattern[motifStep] !== null) {
+        const rawSaved = motifPattern[motifStep];
+        if (p.motifDev === 'repeat') {
+          forceMotifValue = rawSaved;
+        } else if (p.motifDev === 'transpose') {
+          forceMotifValue = rawSaved + tuning.smallStep * 2;
+        } else if (p.motifDev === 'invert') {
+          forceMotifValue = -rawSaved;
+        }
+      }
+
+      let bestCandidate;
+      let candidateSteps = [];
+      let chosenIdx = -1;
+      let candidateWeights = null;
+
+      if (forceMotifValue !== null) {
+        bestCandidate = chord.rootSteps + forceMotifValue;
+      } else {
+        const forceArpegg = p.drumCues && p.drumCues.arpegg && p.drumCues.arpegg[stepIdx];
+        const isAnchorBeat = p.drumCues && p.drumCues.m_anch && p.drumCues.m_anch[stepIdx];
+
+        if (p.tonalDistribution === 'chord_tones' || forceArpegg || isAnchorBeat) {
+          candidateSteps = chord.toneSteps.map(iv => chord.rootSteps + iv);
+        } else if (p.tonalDistribution === 'pentatonic') {
+          const pent = getPentatonicSteps(tuning);
+          candidateSteps = pent.map(steps => chord.rootSteps + steps);
+        } else if (p.tonalDistribution === 'chromatic') {
+          const base = tuning.scale.map(steps => chord.rootSteps + steps);
+          const chromaticShifts = [-2, -1, 1, 2].map(shift => chord.rootSteps + shift * tuning.smallStep);
+          candidateSteps = base.concat(chromaticShifts);
+        } else {
+          candidateSteps = tuning.scale.map(steps => chord.rootSteps + steps);
+        }
+
+        if (candidateSteps.length === 0) candidateSteps = [chord.rootSteps];
+
+        if (isFirstNote) {
+          chosenIdx = Math.floor(rng.next() * candidateSteps.length);
+          bestCandidate = candidateSteps[chosenIdx];
+          isFirstNote = false;
+        } else {
+          const weights = new Float64Array(candidateSteps.length);
+          for (let i = 0; i < candidateSteps.length; i++) {
+            const cand = candidateSteps[i];
+            const distSteps = Math.abs(cand - lastPitchSteps);
+
+            let biasScalar = p.motionBias;
+            if (forceArpegg) biasScalar = 0.9;
+            else if (p.drumCues && p.drumCues.passing && p.drumCues.passing[stepIdx]) biasScalar = 0.1;
+
+            const stepAffinity = Math.exp(-distSteps / (lerp(1.5, 12.0, biasScalar) * tuning.smallStep));
+
+            let leapPenalty = 1.0;
+            if (distSteps > tuning.largeStep && rng.next() > p.leapProbability) {
+              leapPenalty = 0.15;
+            }
+
+            let dirAffinity = 1.0;
+            if (p.dirTrend > 0.05 && cand > lastPitchSteps) {
+              dirAffinity = 1.0 + p.dirTrend * 3.0;
+            } else if (p.dirTrend < -0.05 && cand < lastPitchSteps) {
+              dirAffinity = 1.0 + Math.abs(p.dirTrend) * 3.0;
+            }
+
+            weights[i] = stepAffinity * dirAffinity * leapPenalty;
+          }
+          chosenIdx = rng.weightedIndex(weights);
+          bestCandidate = candidateSteps[chosenIdx];
+          candidateWeights = Array.from(weights);
+        }
+
+        if (step < motif16ths) {
+          motifPattern[step] = bestCandidate - chord.rootSteps;
+        }
+      }
+
+      lastPitchSteps = bestCandidate;
+
+      const baseOct = p.octaveBase !== undefined ? p.octaveBase : 2;
+      const driftLimit = p.octaveDrift !== undefined ? p.octaveDrift : 1;
+      const driftOffset = driftLimit > 0 ? Math.round(rng.range(-driftLimit, driftLimit + 0.99)) : 0;
+      const absoluteOctave = baseOct + driftOffset;
+      const finalSteps = absoluteOctave * tuning.edo + bestCandidate;
+
+      const trillOrGraceProb = p.ornamentProb !== undefined ? p.ornamentProb : 0.15;
+      const triggerOrnament = rng.next() < trillOrGraceProb;
+
+      if (triggerOrnament && !isFirstNote) {
+        const graceSteps = absoluteOctave * tuning.edo + lastPitchSteps;
+        notes.push({
+          startBeat: Math.max(0, beatPos + timingOffset - 0.05),
+          durBeats: 0.04,
+          steps: graceSteps,
+          seqType: 'phrase',
+          stepIdx: stepIdx
+        });
+      }
+
+      intermediateLog.phrase.push({
+        step: step,
+        stepIdx: stepIdx,
+        beatPos: beatPos + timingOffset,
+        chordName: chord.name,
+        candidateSteps: Array.from(candidateSteps),
+        candidateWeights: candidateWeights,
+        chosenIdx: chosenIdx,
+        chosenStep: bestCandidate,
+        octave: absoluteOctave,
+        absoluteSteps: finalSteps
+      });
+
+      notes.push({
+        startBeat: beatPos + timingOffset,
+        durBeats: durBeats,
+        steps: finalSteps,
+        seqType: 'phrase',
+        stepIdx: stepIdx
+      });
+    }
+  }
+  return notes;
+}
+
+function generateBassPad(chords, beatsPerBar, tuning, p, rng) {
+  const padNotes = [], bassNotes = [];
+  const totalBeats = chords.length * beatsPerBar;
+  const total16ths = totalBeats * 4;
+
+  // Pad remains structured structural beds, gated via CH_PULSE (chord pad gating pulse) cue
+  chords.forEach((chord, i) => {
+    for (let stepOfBar = 0; stepOfBar < beatsPerBar * 4; stepOfBar++) {
+      const absoluteStep = i * beatsPerBar * 4 + stepOfBar;
+      const gateActive = p.drumCues.ch_pulse[stepOfBar];
+      if (gateActive) {
+        const startBeat = absoluteStep * 0.25;
+        chord.toneSteps.forEach((iv, j) => {
+          padNotes.push({
+            startBeat,
+            durBeats: 0.22,
+            steps: PAD_OCTAVES * tuning.edo + chord.rootSteps + iv,
+            voiceIndex: j,
+            seqType: 'ch_pulse',
+            stepIdx: absoluteStep % 32
+          });
+        });
+      }
+    }
+  });
+
+  let currentBassDurRemaining = 0;
+  for (let step = 0; step < total16ths; step++) {
+    if (currentBassDurRemaining > 0) {
+      currentBassDurRemaining--;
+      continue;
+    }
+
+    const beat = step * 0.25;
+    const stepIdx = step % 32;
+    const chordIdx = Math.min(chords.length - 1, Math.floor(beat / beatsPerBar));
+    const chord = chords[chordIdx];
+
+    const isRoot = p.drumCues.b_root[stepIdx];
+    const isPassing = p.drumCues.passing[stepIdx];
+    const isSyncop = p.drumCues.syncop[stepIdx];
+
+    if (isRoot) {
+      bassNotes.push({
+        startBeat: beat,
+        durBeats: 0.45,
+        steps: BASS_OCTAVES * tuning.edo + chord.rootSteps,
+        seqType: 'b_root',
+        stepIdx: stepIdx
+      });
+      currentBassDurRemaining = 1;
+    } else if (isPassing && p.jazzEnabled) {
+      const tone = chord.toneSteps[Math.min(2, chord.toneSteps.length - 1)];
+      bassNotes.push({
+        startBeat: beat,
+        durBeats: 0.25,
+        steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + tone,
+        seqType: 'passing',
+        stepIdx: stepIdx
+      });
+    } else if (isSyncop && rng.next() < p.density) {
+      const syncopatedTone = (rng.next() > 0.5 ? 1 : -1) * tuning.smallStep;
+      bassNotes.push({
+        startBeat: beat,
+        durBeats: 0.15,
+        steps: BASS_OCTAVES * tuning.edo + chord.rootSteps + syncopatedTone,
+        seqType: 'syncop',
+        stepIdx: stepIdx
+      });
+    }
+  }
+
+  return { padNotes, bassNotes };
+}
+
+function stepsToFreq(totalSteps, tonicFreq, edo) { return tonicFreq * Math.pow(2, totalSteps / edo); }
+
+
+/* =========================================================================
+   4. VOLTERRA SPECTRAL TRANSFORM GENERATION (Actual Spectral Evolution!)
+   ========================================================================= */
+
+const SPECTRAL_LEVELS = [0.15, 0.32, 0.50, 0.72, 1.05, 1.48, 2.10];
+const SPECTRAL_CENTER = 3;
+
+const SPECTRAL_KERNELS = {
+  gaussian: { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-(d * d) / (2 * s * s)) },
+  laplace:  { step: (d, s) => Math.exp(-Math.abs(d) / s), pull: (d, s) => Math.exp(-Math.abs(d) / s) },
+  uniform:  { step: (d, s) => (Math.abs(d) <= s ? 1 : 0.05), pull: (d, s) => (Math.abs(d) <= s ? 1 : 0.05) },
+  cauchy:   { step: (d, s) => 1 / (1 + (d / s) * (d / s)), pull: (d, s) => 1 / (1 + (d / s) * (d / s)) },
+  bimodal:  { step: (d, s) => Math.exp(-(d * d) / (2 * s * s)), pull: (d, s) => Math.exp(-((d - 2) ** 2) / (2 * s * s)) + Math.exp(-((d + 2) ** 2) / (2 * s * s)) },
+};
+
+function buildVolterraSpectralImage(rng, numFrames, numHarmonics, p, startBeat = 0, secPerBeat = 0.5) {
+  let trans = [];
+  if (p.spectralDistribution === 'custom_markov' && p.customMarkovMatrix) {
+    trans = p.customMarkovMatrix;
+  } else {
+    const stepSigma = lerp(0.4, 3.0, p.volatility);
+    const centerSigma = lerp(0.5, 4.0, p.richness);
+    const kernel = SPECTRAL_KERNELS[p.spectralDistribution] || SPECTRAL_KERNELS.gaussian;
+    for (let i = 0; i < 7; i++) {
+      const row = new Float32Array(7); let sum = 0;
+      for (let j = 0; j < 7; j++) {
+        const step = kernel.step(j - i, stepSigma);
+        const pull = kernel.pull(j - SPECTRAL_CENTER, centerSigma);
+        row[j] = step * pull; sum += row[j];
+      }
+      for (let j = 0; j < 7; j++) row[j] /= sum;
+      trans.push(row);
+    }
+  }
+
+  // Seeding inside Volterra: Localized deterministic per-note seed decouples notes and guarantees stability
+  const noteSeed = (p.seed ^ Math.round(startBeat * 7919) ^ Math.round(numHarmonics * 104729)) >>> 0;
+  const noteRng = new RNG(noteSeed);
+
+  const rawX = [];
+  const state = new Int8Array(numHarmonics + 1).fill(SPECTRAL_CENTER);
+  const FRAME_HOP_SEC = p.frameHopSec || 0.025;
+  const framesPerBeat = 1.0 / (FRAME_HOP_SEC / secPerBeat);
+
+  for (let f = 0; f < numFrames; f++) {
+    const col = new Float32Array(numHarmonics + 1);
+    const currentBeat = startBeat + f / framesPerBeat;
+    const step32nd = Math.floor(currentBeat * 4) % 32;
+    const rhythmTriggerActive = p.spectralCues && p.spectralCues[step32nd];
+
+    const xRatio = (numFrames > 1) ? f / (numFrames - 1) : 0;
+
+    // Evaluate Bezier curves at the current normalized time of composition
+    const attCurve = p.paintEnabled ? evaluateBezier(xRatio, p.curves.attractor[0], p.curves.attractor[1], p.curves.attractor[2], p.curves.attractor[3]) * numHarmonics : 0;
+    const lowCurve = p.paintEnabled ? evaluateBezier(xRatio, p.curves.lowLimit[0], p.curves.lowLimit[1], p.curves.lowLimit[2], p.curves.lowLimit[3]) * numHarmonics : 0;
+    const highCurve = p.paintEnabled ? evaluateBezier(xRatio, p.curves.highLimit[0], p.curves.highLimit[1], p.curves.highLimit[2], p.curves.highLimit[3]) * numHarmonics : 0;
+
+    for (let k = 1; k <= numHarmonics; k++) {
+      if (f > 0) {
+        state[k] = noteRng.weightedIndex(trans[state[k]]);
+      }
+      let val = SPECTRAL_LEVELS[state[k]];
+
+      // Address Point 5 & 6: Mitigate disproportionate upper-register dumping.
+      // Balance triggers so higher harmonics decay naturally to model physical instrument damping.
+      const spectralRollOff = Math.exp(-0.04 * (k - 1));
+      val *= spectralRollOff;
+
+      if (rhythmTriggerActive) {
+        // High harmonics receive less boost than lower/mid range during excitation
+        const triggerFactor = 1.0 + 0.6 * Math.exp(-0.06 * (k - 1));
+        val *= triggerFactor;
+      }
+
+      // Apply Tonal Spectral Painting Bezier Curves (attraction and frequency cut-offs)
+      if (p.paintEnabled) {
+        if (k < lowCurve || k > highCurve) {
+          val = 0;
+        } else {
+          const dist = Math.abs(k - attCurve);
+          const attractMultiplier = 1.0 + p.attractStrength * 3.5 * Math.exp(-(dist * dist) / 2.0);
+          val *= attractMultiplier;
+        }
+      }
+
+      // Smooth Startup Ramp (Anti-Shock Transient Seeding):
+      // Fade-in the raw excitation over the first 4 frames to prevent sudden feedback shocks
+      const ramp = Math.min(1.0, f / 4.0);
+      col[k] = val * ramp;
+    }
+    rawX.push(col);
+  }
+
+  const Y = [];
+  const tau_max = p.volterraTimeLag !== undefined ? p.volterraTimeLag : 2;
+  const kappa_max = p.volterraFreqLag !== undefined ? p.volterraFreqLag : 2;
+  const c1 = p.volterraC1 !== undefined ? p.volterraC1 : 1.0;
+  const c2 = p.volterraC2 !== undefined ? p.volterraC2 : 0.45;
+  const c3 = p.volterraC3 !== undefined ? p.volterraC3 : 0.20;
+  const alpha = p.volterraAlpha !== undefined ? p.volterraAlpha : 0.5;
+  const beta = p.volterraBeta !== undefined ? p.volterraBeta : 0.4;
+  const order = p.volterraOrder !== undefined ? p.volterraOrder : 2;
+
+  const tempWeights = new Float64Array(tau_max + 1);
+  for (let t = 0; t <= tau_max; t++) tempWeights[t] = Math.exp(-alpha * t);
+
+  const specWeights = new Float64Array(2 * kappa_max + 1);
+  for (let k = -kappa_max; k <= kappa_max; k++) {
+    specWeights[k + kappa_max] = Math.exp(-beta * Math.abs(k));
+  }
+
+  const getX = (fi, ki) => {
+    if (fi < 0) return 0; // Resting system state history prevents shock transients!
+    if (fi >= numFrames) fi = numFrames - 1;
+    if (ki < 1) return 0;
+    if (ki > numHarmonics) return 0;
+    return rawX[fi][ki];
+  };
+
+  const lastColY = new Float32Array(numHarmonics + 1);
+
+  for (let f = 0; f < numFrames; f++) {
+    const colY = new Float32Array(numHarmonics + 1);
+
+    for (let k = 1; k <= numHarmonics; k++) {
+      // 1. Linear Term (Address Point 1 & 8: normalize linear kernel by sum of weights)
+      let L = 0;
+      let linearWeightSum = 0;
+      for (let t = 0; t <= tau_max; t++) {
+        const wt = tempWeights[t];
+        for (let kp = -kappa_max; kp <= kappa_max; kp++) {
+          const wk = specWeights[kp + kappa_max];
+          L += getX(f - t, k - kp) * wt * wk;
+          linearWeightSum += wt * wk;
+        }
+      }
+      if (linearWeightSum > 0) {
+        L /= linearWeightSum; // Linear kernel is perfectly normalized (energy preserving)
+      }
+
+      // 2. Quadratic Term (Address Point 2, 3, 8 & 10: normalize over all paths to prevent explosion)
+      let Q = 0;
+      let quadPathsCount = 0;
+      if (order >= 2) {
+        // Sum-frequency generation: k1 + k2 = k
+        for (let k1 = 1; k1 < k; k1++) {
+          const k2 = k - k1;
+          for (let t1 = 0; t1 <= Math.min(1, tau_max); t1++) {
+            const wt1 = tempWeights[t1];
+            const x1 = getX(f - t1, k1);
+            const x2 = getX(f - t1, k2);
+            // Destructive phase interference / cancellation:
+            const phaseCoeff = Math.cos((k1 - k2) * 1.2);
+            Q += x1 * x2 * wt1 * phaseCoeff;
+            quadPathsCount += wt1;
+          }
+        }
+        // Difference-frequency generation: |k1 - k2| = k
+        for (let k1 = k + 1; k1 <= Math.min(numHarmonics, k + 6); k1++) {
+          const k2 = k1 - k;
+          for (let t1 = 0; t1 <= Math.min(1, tau_max); t1++) {
+            const wt1 = tempWeights[t1];
+            const x1 = getX(f - t1, k1);
+            const x2 = getX(f - t1, k2);
+            // Destructive phase interference / cancellation:
+            const phaseCoeff = Math.cos((k1 - k2) * 1.2);
+            Q += x1 * x2 * wt1 * phaseCoeff;
+            quadPathsCount += wt1;
+          }
+        }
+      }
+      if (quadPathsCount > 0) {
+        Q /= quadPathsCount; // Normalized over actual combinations to prevent resonance explosion!
+      }
+
+      // 3. Cubic Term (Address Point 9 & 10: negative feedback cubic restoring force to suppress resonances)
+      let C = 0;
+      if (order >= 3) {
+        const localX = getX(f, k);
+        const neighborhoodEnergy = (getX(f, k - 1) + localX + getX(f, k + 1)) / 3.0;
+        // Restoring force acts subtractively (negative coefficient) to damp peaky clusters
+        C = -localX * (neighborhoodEnergy * neighborhoodEnergy);
+      }
+
+      // 4. Combine and Apply Soft-Saturation (Address Point 4, 7 & 10: anti-resonance damping & lateral inhibition)
+      const leftNeighbor = getX(f, k - 1);
+      const rightNeighbor = getX(f, k + 1);
+      // Lateral inhibition suppresses neighbouring frequencies from joining into massive whistling ridges
+      const lateralInhibition = 0.25 * (leftNeighbor + rightNeighbor);
+
+      // Higher harmonics naturally decay more rapidly to match acoustic properties
+      const frequencyDamping = Math.exp(-0.03 * (k - 1));
+
+      const rawVal = (c1 * L - lateralInhibition + c2 * Q + c3 * C) * frequencyDamping;
+      const targetVal = Math.tanh(Math.max(0, rawVal));
+
+      // Address Point 7: Add physical temporal one-pole smoothing/damping (lowpass filter on amplitudes)
+      // to prevent whistle resonances/sudden clicks and provide high-frequency anti-resonance.
+      const smoothFactor = 0.45 + 0.35 * Math.tanh((k - 1) * 0.05); // Higher harmonics get more temporal smoothing/damping
+      colY[k] = lastColY[k] + (1 - smoothFactor) * (targetVal - lastColY[k]);
+      lastColY[k] = colY[k];
+    }
+    Y.push(colY);
+  }
+
+  return Y;
+}
+
+/* =========================================================================
+   5. WAVEFORM RECONSTRUCTION
+   ========================================================================= */
+
+function renderNote(bufL, bufR, sr, startSample, durSamples, f0, spectralImage, frameHopSamples, attackSec, releaseSec, velocity, pan) {
+  const numH = spectralImage[0].length - 1;
+  const phaseAcc = new Float64Array(numH + 1);
+
+  const attackSamples = Math.max(1, Math.floor(attackSec * sr));
+  const relSamples = Math.max(1, Math.floor(releaseSec * sr));
+  const totalSamples = durSamples + relSamples;
+
+  const panAngle = (clamp(pan, -1, 1) + 1) * 0.25 * Math.PI;
+  const gL = Math.cos(panAngle), gR = Math.sin(panAngle);
+
+  const twoPiOverSr = 2 * Math.PI / sr;
+  const nyquist = sr * 0.5;
+  const freqs = new Float64Array(numH + 1);
+  const incr = new Float64Array(numH + 1);
+  for (let k = 1; k <= numH; k++) { freqs[k] = k * f0; incr[k] = freqs[k] * twoPiOverSr; }
+
+  const bufLen = bufL.length;
+  const lastFrame = spectralImage.length - 1;
+
+  for (let n = 0; n < totalSamples; n++) {
+    const outIdx = startSample + n;
+    if (outIdx < 0 || outIdx >= bufLen) { for (let k = 1; k <= numH; k++) phaseAcc[k] += incr[k]; continue; }
+
+    let env;
+    if (n < attackSamples) env = n / attackSamples;
+    else if (n < durSamples) env = 1;
+    else env = Math.max(0, 1 - (n - durSamples) / relSamples);
+
+    const frameF = n / frameHopSamples;
+    let f0i = frameF | 0; if (f0i > lastFrame) f0i = lastFrame;
+    let f1i = f0i + 1; if (f1i > lastFrame) f1i = lastFrame;
+    const frac = frameF - f0i;
+
+    let sample = 0;
+    for (let k = 1; k <= numH; k++) {
+      if (freqs[k] < nyquist) {
+        const lvl = spectralImage[f0i][k] * (1 - frac) + spectralImage[f1i][k] * frac;
+        // Physical air absorption roll-off to eliminate high-band whistling/ringing:
+        const airDamping = Math.exp(-0.00008 * freqs[k]);
+        const amp = 0.12 * lvl * env * velocity * airDamping; // Calibrated volume scale
+        sample += amp * lutCos(phaseAcc[k]);
+      }
+      phaseAcc[k] += incr[k];
+    }
+    bufL[outIdx] += sample * gL;
+    bufR[outIdx] += sample * gR;
+  }
+}
+
+/* =========================================================================
+   6. REVERB & WAV export
+   ========================================================================= */
+
+// Feedback Improved Damped Comb Filter (FBCF with Lowpass in the feedback loop)
+// to prevent ringing and high-frequency resonance build-up in reverb.
+function combFilterDamped(input, delay, feedback, damp) {
+  const d = Math.max(1, delay);
+  const out = new Float32Array(input.length);
+  const buf = new Float32Array(d);
+  let idx = 0;
+  let lastFilterState = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    const bufOut = buf[idx];
+    out[i] = bufOut;
+
+    // One-pole lowpass filter in the feedback loop:
+    const filteredFeedback = bufOut + damp * (lastFilterState - bufOut);
+    lastFilterState = filteredFeedback;
+
+    buf[idx] = input[i] + filteredFeedback * feedback;
+    idx = (idx + 1) % d;
+  }
+  return out;
+}
+
+function allpassFilter(input, delay, g) {
+  const d = Math.max(1, delay);
+  const out = new Float32Array(input.length);
+  const buf = new Float32Array(d);
+  let idx = 0;
+  for (let i = 0; i < input.length; i++) {
+    const bufOut = buf[idx];
+    const inVal = input[i];
+    out[i] = -g * inVal + bufOut;
+    buf[idx] = inVal + bufOut * g;
+    idx = (idx + 1) % d;
+  }
+  return out;
+}
+
+function monoReverb(input, sr, combMs, apMs, dampValue) {
+  const sum = new Float32Array(input.length);
+  for (const ms of combMs) {
+    // Reduce Comb feedback from 0.81 to 0.74 to completely eliminate high-frequency metallic resonances and ringing:
+    const c = combFilterDamped(input, Math.round(ms * sr / 1000), 0.74, dampValue);
+    for (let i = 0; i < input.length; i++) sum[i] += c[i] * 0.25;
+  }
+  let ap = sum;
+  for (const ms of apMs) ap = allpassFilter(ap, Math.round(ms * sr / 1000), 0.45);
+
+  // Apply a gentle post-reverb one-pole lowpass filter to clean up any remaining high-frequency whistle:
+  const filtered = new Float32Array(ap.length);
+  let state = 0;
+  for (let i = 0; i < ap.length; i++) {
+    state = state + 0.35 * (ap[i] - state);
+    filtered[i] = state;
+  }
+  return filtered;
+}
+
+function schroederReverbStereo(bufL, bufR, sr, wet) {
+  if (wet <= 0.002) return [bufL.slice(), bufR.slice()];
+  // Damp value of 0.28 to provide physical high-frequency damping
+  const wetL = monoReverb(bufL, sr, [35.3, 36.7, 33.8, 32.2], [5.1, 12.6], 0.45);
+  const wetR = monoReverb(bufR, sr, [35.9, 37.2, 34.3, 32.7], [5.3, 12.9], 0.45);
+  const outL = new Float32Array(bufL.length), outR = new Float32Array(bufR.length);
+  for (let i = 0; i < bufL.length; i++) {
+    outL[i] = bufL[i] * (1 - wet) + wetL[i] * wet;
+    outR[i] = bufR[i] * (1 - wet) + wetR[i] * wet;
+  }
+  return [outL, outR];
+}
+
+function encodeWavStereo(bufL, bufR, sr) {
+  const numSamples = bufL.length;
+  const numChannels = 2, bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numSamples * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeStr(8, 'WAVE');
+  writeStr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true); view.setUint32(24, sr, true);
+  view.setUint32(28, sr * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+  writeStr(36, 'data'); view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const sL = clamp(bufL[i], -1, 1), sR = clamp(bufR[i], -1, 1);
+    view.setInt16(offset, sL < 0 ? sL * 32768 : sL * 32767, true); offset += 2;
+    view.setInt16(offset, sR < 0 ? sR * 32768 : sR * 32767, true); offset += 2;
+  }
+  return buffer;
+}
+
+/* =========================================================================
+   7. VISUALIZATION
+   ========================================================================= */
+
+function spectralColormap(t) {
+  const stops = [
+    [0.00, 10, 12, 16], [0.25, 45, 20, 90], [0.50, 150, 40, 110], [0.75, 232, 110, 50], [1.00, 250, 214, 140],
+  ];
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [t0, r0, g0, b0] = stops[i], [t1, r1, g1, b1] = stops[i + 1];
+    if (t >= t0 && t <= t1) {
+      const f = (t - t0) / (t1 - t0);
+      return [Math.round(lerp(r0, r1, f)), Math.round(lerp(g0, g1, f)), Math.round(lerp(b0, b1, f))];
+    }
+  }
+  return [250, 214, 140];
+}
+function aggregateImageForDisplay(image, displayW, maxHarm) {
+  const srcLen = image.length;
+  const out = new Array(displayW);
+  for (let x = 0; x < displayW; x++) {
+    let srcStart = Math.floor(x * srcLen / displayW);
+    let srcEnd = Math.floor((x + 1) * srcLen / displayW);
+    if (srcEnd <= srcStart) srcEnd = srcStart + 1;
+    if (srcEnd > srcLen) srcEnd = srcLen;
+    if (srcStart >= srcLen) srcStart = srcLen - 1;
+    const col = new Float32Array(maxHarm + 1);
+    for (let si = srcStart; si < srcEnd; si++) {
+      const srcCol = image[si];
+      for (let k = 1; k <= maxHarm; k++) if (srcCol[k] > col[k]) col[k] = srcCol[k];
+    }
+    out[x] = col;
+  }
+  return out;
+}
+function percentileMax(image, maxHarm, pct) {
+  const vals = [];
+  for (const col of image) for (let k = 1; k <= maxHarm; k++) if (col[k] > 0) vals.push(col[k]);
+  if (vals.length === 0) return 1e-6;
+  vals.sort((a, b) => a - b);
+  const idx = clamp(Math.floor(vals.length * pct), 0, vals.length - 1);
+  return Math.max(vals[idx], 1e-6);
+}
+let lastVizImage = null, lastVizMaxHarm = 24;
+
+// Global Curves state for Tonal Spectral Painting
+let paintEnabled = false;
+let activeCurveType = 'attractor';
+let attractStrength = 0.60;
+let curves = {
+  attractor: [
+    { x: 0.0, y: 0.5 },
+    { x: 0.33, y: 0.5 },
+    { x: 0.67, y: 0.5 },
+    { x: 1.0, y: 0.5 }
+  ],
+  lowLimit: [
+    { x: 0.0, y: 0.0 },
+    { x: 0.33, y: 0.0 },
+    { x: 0.67, y: 0.0 },
+    { x: 1.0, y: 0.0 }
+  ],
+  highLimit: [
+    { x: 0.0, y: 1.0 },
+    { x: 0.33, y: 1.0 },
+    { x: 0.67, y: 1.0 },
+    { x: 1.0, y: 1.0 }
+  ]
+};
+
+function drawBezierCurves(ctx, w, h) {
+  if (!paintEnabled) return;
+
+  const curveColors = {
+    attractor: 'rgba(82, 214, 198, 0.95)', // Cyan
+    lowLimit: 'rgba(232, 163, 61, 0.95)',  // Amber
+    highLimit: 'rgba(196, 84, 74, 0.95)'   // Red
+  };
+
+  const curveLabel = {
+    attractor: 'Tone Attractor',
+    lowLimit: 'Low Frequency Limit',
+    highLimit: 'High Frequency Limit'
+  };
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
+  Object.keys(curves).forEach(key => {
+    const pts = curves[key];
+    const isActive = (key === activeCurveType);
+    ctx.lineWidth = isActive ? 3 : 1.5;
+    ctx.setLineDash(isActive ? [] : [4, 4]);
+    ctx.strokeStyle = curveColors[key];
+
+    // Plot the curve with steps to handle frequency scaling cleanly
+    ctx.beginPath();
+    const plotSteps = 200;
+    for (let s = 0; s <= plotSteps; s++) {
+      const xRatio = s / plotSteps;
+      const xVal = xRatio * w;
+      const yNorm = evaluateBezier(xRatio, pts[0], pts[1], pts[2], pts[3]);
+
+      const kVal = 1 + yNorm * (maxHarm - 1);
+      const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+      const yVal = h - normYPixel * h;
+
+      if (s === 0) {
+        ctx.moveTo(xVal, yVal);
+      } else {
+        ctx.lineTo(xVal, yVal);
+      }
+    }
+    ctx.stroke();
+
+    if (isActive) {
+      ctx.setLineDash([]);
+      pts.forEach((pt, idx) => {
+        const hX = pt.x * w;
+        const kVal = 1 + pt.y * (maxHarm - 1);
+        const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+        const hY = h - normYPixel * h;
+
+        ctx.beginPath();
+        ctx.arc(hX, hY, 8, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(20, 24, 30, 0.85)';
+        ctx.strokeStyle = curveColors[key];
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(hX, hY, 3, 0, 2 * Math.PI);
+        ctx.fillStyle = curveColors[key];
+        ctx.fill();
+
+        ctx.font = '9px "IBM Plex Mono", monospace';
+        ctx.fillStyle = curveColors[key];
+        ctx.fillText(`P${idx}`, hX + 11, hY + 3);
+      });
+
+      ctx.fillStyle = curveColors[key];
+      ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+      ctx.fillText(`★ Active: ${curveLabel[key]}`, 15, h - 15);
+    }
+  });
+}
+
+function drawSpectralImage(image, maxHarm) {
+  lastVizImage = image; lastVizMaxHarm = maxHarm;
+  const canvas = document.getElementById('spectralCanvas');
+
+  // Dynamic height adjustment to make editor larger (e.g. 800px)
+  const dpr = window.devicePixelRatio || 1;
+  const requestedHeight = parseFloat(document.getElementById('canvasHeightSlider').value) || 800;
+
+  const cssWidth = canvas.clientWidth || (canvas.parentElement && canvas.parentElement.clientWidth) || 900;
+  const displayW = clamp(Math.round(cssWidth * dpr), 200, 2200);
+  const agg = aggregateImageForDisplay(image, displayW, maxHarm);
+  const w = displayW;
+  const h = Math.round(requestedHeight * dpr);
+  canvas.width = w; canvas.height = h;
+  canvas.style.height = requestedHeight + 'px';
+
+  const ctx = canvas.getContext('2d');
+  const maxVal = percentileMax(agg, maxHarm, 0.97);
+  const imgData = ctx.createImageData(w, h);
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+
+  // Fully bilinear horizontal (time) and vertical (frequency) continuous interpolation
+  // from source image matrix directly to canvas screen space, ensuring infinite analog resolution
+  // in low bands and a stunning vector-like detail representation!
+  const srcLen = image.length;
+  for (let x = 0; x < w; x++) {
+    const normX = x / w;
+    const srcXFrac = normX * (srcLen - 1);
+    const x0 = clamp(Math.floor(srcXFrac), 0, srcLen - 1);
+    const x1 = clamp(Math.ceil(srcXFrac), 0, srcLen - 1);
+    const xFrac = srcXFrac - Math.floor(srcXFrac);
+
+    for (let currY = 0; currY < h; currY++) {
+      const normY = 1 - (currY / h);
+      const kFrac = getHarmBoundFromNormY(normY, maxHarm, scaling);
+
+      const k0 = clamp(Math.floor(kFrac), 1, maxHarm);
+      const k1 = clamp(Math.ceil(kFrac), 1, maxHarm);
+      const kFracDiff = kFrac - Math.floor(kFrac);
+
+      const v00 = image[x0][k0] || 0;
+      const v10 = image[x1][k0] || 0;
+      const v01 = image[x0][k1] || 0;
+      const v11 = image[x1][k1] || 0;
+
+      const valInterp = (v00 * (1 - xFrac) + v10 * xFrac) * (1 - kFracDiff) +
+                        (v01 * (1 - xFrac) + v11 * xFrac) * kFracDiff;
+
+      const v = clamp(valInterp / maxVal, 0, 1);
+      const [r, g, b] = spectralColormap(v);
+
+      const idx = (currY * w + x) * 4;
+      imgData.data[idx] = r;
+      imgData.data[idx + 1] = g;
+      imgData.data[idx + 2] = b;
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Draw Horizontal and Vertical Quantization Grid lines matching EDO scale
+  if (paintEnabled) {
+    const gridMode = document.getElementById('gridModeSelect').value || 'all';
+    if (gridMode !== 'none') {
+      ctx.setLineDash([3, 5]);
+      ctx.lineWidth = 1;
+
+      for (let k = 1; k <= maxHarm; k++) {
+        if (gridMode === 'consonant') {
+          const isConsonant = [1, 2, 3, 4, 5, 6, 8, 10, 12, 16].includes(k);
+          if (!isConsonant) continue;
+        } else if (gridMode === 'stepAlign') {
+          const edo = currentTuning ? currentTuning.edo : 12;
+          const rawSteps = edo * Math.log2(k);
+          const roundedSteps = Math.round(rawSteps);
+          const centsDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+          if (Math.abs(centsDev) > 15) continue;
+        }
+
+        const normYMid = getNormYForHarmBound(k, maxHarm, scaling);
+        const yVal = h - normYMid * h;
+
+        ctx.strokeStyle = 'rgba(82, 214, 198, 0.18)'; // Faint Cyan
+        ctx.beginPath();
+        ctx.moveTo(0, yVal);
+        ctx.lineTo(w, yVal);
+        ctx.stroke();
+
+        const edo = currentTuning ? currentTuning.edo : 12;
+        const rawSteps = edo * Math.log2(k);
+        const roundedSteps = Math.round(rawSteps);
+        const centDev = Math.round((rawSteps - roundedSteps) * (1200 / edo));
+        const centSign = centDev >= 0 ? `+${centDev}` : `${centDev}`;
+        const devString = Math.abs(centDev) > 3 ? ` (${centSign}¢)` : '';
+
+        let noteLabel = `H${k}`;
+        if (k === 1) noteLabel += ' [Root]';
+        else if (k === 2) noteLabel += ' [Octave]';
+        else if (k === 3) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+        else if (k === 4) noteLabel += ' [Double Octave]';
+        else if (k === 5) noteLabel += ` [Third / step ${roundedSteps}${devString}]`;
+        else if (k === 6) noteLabel += ` [Fifth / step ${roundedSteps}${devString}]`;
+        else if (k === 8) noteLabel += ' [Triple Octave]';
+        else noteLabel += ` [step ${roundedSteps}${devString}]`;
+
+        ctx.fillStyle = 'rgba(82, 214, 198, 0.55)';
+        ctx.font = '10px "IBM Plex Mono", monospace';
+        ctx.fillText(noteLabel, 12, yVal - 3);
+      }
+    }
+
+    // Draw Vertical Bar division lines
+    const timeGrid = document.getElementById('timeGridSelect').value || 'bar';
+    if (timeGrid !== 'none') {
+      ctx.strokeStyle = 'rgba(232, 163, 61, 0.15)'; // Faint Amber
+      const barsCount = lastFullParams ? lastFullParams.bars : 8;
+      const subdivs = (timeGrid === 'beat') ? barsCount * 4 : barsCount;
+      const labelPrefix = (timeGrid === 'beat') ? 'Beat' : 'Bar';
+
+      for (let i = 0; i <= subdivs; i++) {
+        const xVal = (i / subdivs) * w;
+        ctx.beginPath();
+        ctx.moveTo(xVal, 0);
+        ctx.lineTo(xVal, h);
+        ctx.stroke();
+
+        if (i < subdivs) {
+          ctx.fillStyle = 'rgba(232, 163, 61, 0.45)';
+          ctx.font = 'bold 10px "IBM Plex Mono", monospace';
+          ctx.fillText(`${labelPrefix} ${i + 1}`, xVal + 8, h - 8);
+        }
+      }
+    }
+  }
+
+  // Overlay the active Bezier curves and control point handles
+  drawBezierCurves(ctx, w, h);
+}
+function renderProgressionStrip(chords) {
+  const strip = document.getElementById('progressionStrip');
+  strip.innerHTML = '';
+  chords.forEach((chord, i) => {
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    const isLocked = lockedSlots[i] !== undefined;
+    cell.className = 'chord-cell' + (i === 0 || i === chords.length - 1 ? ' anchor' : '') + (isLocked ? ' locked' : '');
+    const idx = document.createElement('span'); idx.className = 'chord-idx'; idx.textContent = (i + 1) + (isLocked ? ' \u{1F512}' : '');
+    const name = document.createElement('span'); name.className = 'chord-name'; name.textContent = chord.name;
+    cell.appendChild(idx); cell.appendChild(name);
+    cell.addEventListener('click', () => openChordEditor(i));
+    strip.appendChild(cell);
+  });
+}
+
+/* =========================================================================
+   8. UI WIRING + ORCHESTRATION
+   ========================================================================= */
+
+const $ = id => document.getElementById(id);
+const rootSelect = $('rootSelect'), modeSelect = $('modeSelect');
+const tuningSelect = $('tuningSelect'), customTuningBlock = $('customTuningBlock'), customEdoInput = $('customEdoInput');
+const styleSelect = $('styleSelect'), jazzBlock = $('jazzBlock');
+const secDomSlider = $('secDomSlider'), tritoneSubSlider = $('tritoneSubSlider'), extensionSlider = $('extensionSlider');
+const tempoSlider = $('tempoSlider'), barsSlider = $('barsSlider'), tensionSlider = $('tensionSlider');
+
+// Panel 2 Phrase controls
+const leapSlider = $('leapSlider'), densitySlider = $('densitySlider');
+const phraseGateSlider = $('phraseGateSlider'), ornamentSlider = $('ornamentSlider');
+const phraseTonalDistributionSelect = $('phraseTonalDistributionSelect');
+const octaveBaseSlider = $('octaveBaseSlider'), octaveDriftSlider = $('octaveDriftSlider');
+const motionBiasSlider = $('motionBiasSlider'), dirTrendSlider = $('dirTrendSlider');
+
+// Volterra UI elements
+const fidelitySelect = $('fidelitySelect');
+const volterraOrderSelect = $('volterraOrderSelect');
+const timeLagSlider = $('timeLagSlider'), freqLagSlider = $('freqLagSlider');
+const c1Slider = $('c1Slider'), c2Slider = $('c2Slider'), c3Slider = $('c3Slider');
+const tempDecaySlider = $('tempDecaySlider'), specDecaySlider = $('specDecaySlider');
+
+const volatilitySlider = $('volatilitySlider'), richnessSlider = $('richnessSlider'), distributionSelect = $('distributionSelect');
+const attackSlider = $('attackSlider'), releaseSlider = $('releaseSlider'), brightnessSlider = $('brightnessSlider');
+const spaceSlider = $('spaceSlider'), gainSlider = $('gainSlider');
+const seedInput = $('seedInput'), randSeedBtn = $('randSeedBtn');
+const generateBtn = $('generateBtn'), playBtn = $('playBtn'), stopBtn = $('stopBtn'), exportBtn = $('exportBtn');
+const statusLine = $('statusLine');
+const chordEditPopover = $('chordEditPopover'), chordEditSelect = $('chordEditSelect'), chordEditLockBtn = $('chordEditLockBtn'), chordEditClose = $('chordEditClose');
+
+let currentStates = null, currentTuning = null, currentMatrices = null;
+let currentStateIndices = null, currentChords = null;
+let lockedSlots = {};
+let lastFullParams = null;
+let intermediateLog = { progression: [], phrase: [] };
+let editingCellIndex = null;
+
+// Populate EDO list
+Object.entries(TUNING_SYSTEMS).forEach(([edo, label]) => { const o = document.createElement('option'); o.value = edo; o.textContent = label; if (edo === '12') o.selected = true; tuningSelect.appendChild(o); });
+{ const o = document.createElement('option'); o.value = 'custom'; o.textContent = 'custom…'; tuningSelect.appendChild(o); }
+
+// Master Rhythm Cues
+const drumCues = {
+  b_root:   [1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0],
+  m_anch:   [1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0, 1,0,0,0, 0,0,1,0, 0,0,0,0, 1,0,0,0],
+  passing:  [0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0, 0,0,1,0, 0,0,0,0],
+  arpegg:   [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1],
+  syncop:   [0,0,0,0, 1,0,0,0, 0,0,0,0, 0,1,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0, 0,1,0,0],
+  ch_pulse: [1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0, 1,0,0,0]
+};
+
+const spectralCues = [0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1, 0,1,0,1];
+
+// 32-step Phrase custom sequencer cues
+const phraseRhythmCues = [1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0, 1,0,1,0, 0,1,0,0, 1,0,1,0, 0,1,1,0];
+
+// Step-specific custom envelopes state
+let customStepEnvelopes = {}; // key: `${sequencerType}_${stepIdx}` -> { attack: num, release: num, gain: num }
+
+let activeMenuSeqType = null;
+let activeMenuStepIdx = null;
+let activeMenuElement = null;
+
+const stepEnvPopover = $('stepEnvPopover');
+const stepEnvTitle = $('stepEnvTitle');
+const stepAttackSlider = $('stepAttackSlider');
+const stepAttackVal = $('stepAttackVal');
+const stepReleaseSlider = $('stepReleaseSlider');
+const stepReleaseVal = $('stepReleaseVal');
+const stepGainSlider = $('stepGainSlider');
+const stepGainVal = $('stepGainVal');
+
+function updateStepEnvClass(element, seqType, stepIdx) {
+  const key = `${seqType}_${stepIdx}`;
+  if (customStepEnvelopes[key]) {
+    element.classList.add('has-custom-env');
+  } else {
+    element.classList.remove('has-custom-env');
+  }
+}
+
+function handleStepRightClick(e, seqType, stepIdx, element) {
+  e.preventDefault();
+  openStepEnvelopeMenu(seqType, stepIdx, element);
+}
+
+function openStepEnvelopeMenu(seqType, stepIdx, element) {
+  activeMenuSeqType = seqType;
+  activeMenuStepIdx = stepIdx;
+  activeMenuElement = element;
+
+  stepEnvTitle.textContent = `Edit Step Envelope — [${seqType.toUpperCase()} Step ${stepIdx + 1}]`;
+
+  const key = `${seqType}_${stepIdx}`;
+  const env = customStepEnvelopes[key];
+
+  if (env) {
+    stepAttackSlider.value = env.attack;
+    stepReleaseSlider.value = env.release;
+    stepGainSlider.value = env.gain;
+  } else {
+    // Fall back to current global presets
+    const p = readParams();
+    stepAttackSlider.value = mapAttackSec(p.attack);
+    stepReleaseSlider.value = mapReleaseSec(p.release);
+    stepGainSlider.value = 1.0;
+  }
+
+  // Update popup value display text
+  stepAttackVal.textContent = parseFloat(stepAttackSlider.value).toFixed(2) + 's';
+  stepReleaseVal.textContent = parseFloat(stepReleaseSlider.value).toFixed(2) + 's';
+  stepGainVal.textContent = parseFloat(stepGainSlider.value).toFixed(2) + 'x';
+
+  stepEnvPopover.classList.add('open');
+}
+
+// Hook up step envelope popover slider changes real-time
+stepAttackSlider.addEventListener('input', () => {
+  stepAttackVal.textContent = parseFloat(stepAttackSlider.value).toFixed(2) + 's';
+});
+stepReleaseSlider.addEventListener('input', () => {
+  stepReleaseVal.textContent = parseFloat(stepReleaseSlider.value).toFixed(2) + 's';
+});
+stepGainSlider.addEventListener('input', () => {
+  stepGainVal.textContent = parseFloat(stepGainSlider.value).toFixed(2) + 'x';
+});
+
+$('stepEnvClose').addEventListener('click', () => {
+  stepEnvPopover.classList.remove('open');
+});
+stepEnvPopover.addEventListener('click', (e) => {
+  if (e.target === stepEnvPopover) {
+    stepEnvPopover.classList.remove('open');
+  }
+});
+
+$('stepEnvSave').addEventListener('click', () => {
+  if (activeMenuSeqType !== null && activeMenuStepIdx !== null) {
+    const key = `${activeMenuSeqType}_${activeMenuStepIdx}`;
+    customStepEnvelopes[key] = {
+      attack: parseFloat(stepAttackSlider.value),
+      release: parseFloat(stepReleaseSlider.value),
+      gain: parseFloat(stepGainSlider.value)
+    };
+    if (activeMenuElement) {
+      updateStepEnvClass(activeMenuElement, activeMenuSeqType, activeMenuStepIdx);
+    }
+  }
+  stepEnvPopover.classList.remove('open');
+});
+
+$('stepEnvReset').addEventListener('click', () => {
+  if (activeMenuSeqType !== null && activeMenuStepIdx !== null) {
+    const key = `${activeMenuSeqType}_${activeMenuStepIdx}`;
+    delete customStepEnvelopes[key];
+    if (activeMenuElement) {
+      updateStepEnvClass(activeMenuElement, activeMenuSeqType, activeMenuStepIdx);
+    }
+  }
+  stepEnvPopover.classList.remove('open');
+});
+
+// Initialize Drum Machine UI
+const drumUI = $('drumMachineUI');
+Object.keys(drumCues).forEach(instr => {
+  const row = document.createElement('div'); row.className = 'drum-row';
+  const label = document.createElement('div'); label.className = 'drum-label'; label.textContent = instr;
+  const stepsDiv = document.createElement('div'); stepsDiv.className = 'drum-steps';
+  drumCues[instr].forEach((val, stepIdx) => {
+    const step = document.createElement('div');
+    step.className = 'drum-step' + (val ? ' active' : '');
+    step.title = `Step ${stepIdx + 1} (Right-click to edit envelope)`;
+    step.dataset.seq = instr;
+    step.dataset.stepIdx = stepIdx;
+    step.addEventListener('click', () => {
+      drumCues[instr][stepIdx] = drumCues[instr][stepIdx] ? 0 : 1;
+      step.classList.toggle('active');
+    });
+    step.addEventListener('contextmenu', (e) => handleStepRightClick(e, instr, stepIdx, step));
+    stepsDiv.appendChild(step);
+  });
+  row.appendChild(label); row.appendChild(stepsDiv); drumUI.appendChild(row);
+});
+
+// Initialize Phrase Rhythm UI
+const phraseStepsContainer = $('phraseRhythmSteps');
+phraseRhythmCues.forEach((val, stepIdx) => {
+  const step = document.createElement('div');
+  step.className = 'drum-step' + (val ? ' active' : '');
+  step.title = `Step ${stepIdx + 1} (Right-click to edit envelope)`;
+  step.dataset.seq = 'phrase';
+  step.dataset.stepIdx = stepIdx;
+  step.addEventListener('click', () => {
+    phraseRhythmCues[stepIdx] = phraseRhythmCues[stepIdx] ? 0 : 1;
+    step.classList.toggle('active');
+  });
+  step.addEventListener('contextmenu', (e) => handleStepRightClick(e, 'phrase', stepIdx, step));
+  phraseStepsContainer.appendChild(step);
+});
+
+// Initialize Spectral Evolution Sequencer UI
+const spectralStepsContainer = $('spectralRhythmSteps');
+spectralCues.forEach((val, stepIdx) => {
+  const step = document.createElement('div');
+  step.className = 'drum-step' + (val ? ' active' : '');
+  step.title = `Step ${stepIdx + 1} (Right-click to edit envelope)`;
+  step.dataset.seq = 'spectral';
+  step.dataset.stepIdx = stepIdx;
+  step.addEventListener('click', () => {
+    spectralCues[stepIdx] = spectralCues[stepIdx] ? 0 : 1;
+    step.classList.toggle('active');
+  });
+  step.addEventListener('contextmenu', (e) => handleStepRightClick(e, 'spectral', stepIdx, step));
+  spectralStepsContainer.appendChild(step);
+});
+
+// Initialize 7x7 custom Markov transition matrix
+const markovGrid = $('markovGridContainer');
+const markovCells = [];
+const defaultMarkovMatrix = Array.from({ length: 7 }, (_, i) => {
+  const row = new Float32Array(7);
+  for (let j = 0; j < 7; j++) {
+    const dist = Math.abs(i - j);
+    row[j] = Math.max(0.05, 1.0 - dist * 0.3);
+  }
+  const sum = row.reduce((a, b) => a + b, 0);
+  return Array.from(row.map(x => parseFloat((x / sum).toFixed(2))));
+});
+
+function createMarkovUI() {
+  markovGrid.innerHTML = '';
+  const headerLabels = ['', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7'];
+  headerLabels.forEach(lbl => {
+    const d = document.createElement('div');
+    d.style.fontSize = '9px';
+    d.style.color = 'var(--muted)';
+    d.style.textAlign = 'center';
+    d.style.alignSelf = 'center';
+    d.textContent = lbl;
+    markovGrid.appendChild(d);
+  });
+
+  for (let i = 0; i < 7; i++) {
+    const rh = document.createElement('div');
+    rh.style.fontSize = '9px';
+    rh.style.color = 'var(--muted)';
+    rh.style.textAlign = 'right';
+    rh.style.alignSelf = 'center';
+    rh.style.paddingRight = '3px';
+    rh.textContent = 'S' + (i + 1);
+    markovGrid.appendChild(rh);
+
+    markovCells[i] = [];
+    for (let j = 0; j < 7; j++) {
+      const inp = document.createElement('input');
+      inp.type = 'number';
+      inp.min = '0';
+      inp.max = '10';
+      inp.step = '0.01';
+      inp.value = defaultMarkovMatrix[i][j];
+      inp.style.width = '100%';
+      inp.style.background = 'var(--panel2)';
+      inp.style.border = '1px solid var(--border)';
+      inp.style.color = 'var(--cyan)';
+      inp.style.fontFamily = 'inherit';
+      inp.style.fontSize = '9px';
+      inp.style.padding = '3px';
+      inp.style.textAlign = 'center';
+      inp.style.borderRadius = '3px';
+      markovGrid.appendChild(inp);
+      markovCells[i][j] = inp;
+    }
+  }
+}
+createMarkovUI();
+
+function getCustomMarkovMatrix() {
+  const matrix = [];
+  for (let i = 0; i < 7; i++) {
+    const row = [];
+    let sum = 0;
+    for (let j = 0; j < 7; j++) {
+      const v = parseFloat(markovCells[i][j].value) || 0;
+      row.push(v);
+      sum += v;
+    }
+    if (sum === 0) {
+      row[i] = 1.0;
+      sum = 1.0;
+    }
+    matrix.push(row.map(v => v / sum));
+  }
+  return matrix;
+}
+
+$('normalizeMarkovBtn').addEventListener('click', () => {
+  const matrix = getCustomMarkovMatrix();
+  for (let i = 0; i < 7; i++) {
+    for (let j = 0; j < 7; j++) {
+      markovCells[i][j].value = matrix[i][j].toFixed(2);
+    }
+  }
+});
+
+distributionSelect.addEventListener('change', () => {
+  $('markovMatrixBlock').style.display = distributionSelect.value === 'custom_markov' ? 'block' : 'none';
+});
+
+function renderIntermediateLog() {
+  const pContent = $('vizContentProgression');
+  const fContent = $('vizContentPhrase');
+  if (!pContent || !fContent) return;
+
+  // Render Progression Flow
+  let pHTML = '';
+  if (!intermediateLog.progression || intermediateLog.progression.length === 0) {
+    pHTML = `<div style="color:var(--muted); font-style:italic;">No progression generated yet. Click GENERATE to inspect.</div>`;
+  } else {
+    pHTML += `<div style="margin-bottom:12px; font-weight:bold; color:var(--cyan); border-bottom:1px solid var(--border); padding-bottom:6px;">MARKOV PATH TRACE &amp; CHORD RESOLUTIONS:</div>`;
+    intermediateLog.progression.forEach((step, idx) => {
+      const isAnchor = idx === 0 || idx === intermediateLog.progression.length - 1;
+      const lockedStr = step.isLocked ? ' <span style="color:var(--amber);">[🔒 LOCKED]</span>' : '';
+      const forcedStr = step.forcedTonic ? ' <span style="color:var(--phosphor);">[RE-TONIC RESOLVE]</span>' : '';
+      const subbedStr = step.tritoneSubbed ? ' <span style="color:var(--magenta);">[TRITONE SUB]</span>' : '';
+
+      pHTML += `<div style="margin-bottom:10px; padding:8px; background:var(--panel); border:1px solid var(--border); border-radius:4px;">`;
+      pHTML += `  <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom:4px;">`;
+      pHTML += `    <span>Chord ${idx + 1}: <span style="color:var(--ink);">${step.resolvedName || 'Unknown'}</span>${lockedStr}${forcedStr}${subbedStr}</span>`;
+      pHTML += `    <span style="color:var(--muted);">Root steps: ${step.rootSteps || 0}</span>`;
+      pHTML += `  </div>`;
+
+      if (step.toneSteps) {
+        pHTML += `  <div style="font-size:10px; color:var(--muted); margin-bottom:4px;">`;
+        pHTML += `    Chord Tones (EDO Steps): [${step.toneSteps.join(', ')}]`;
+        if (step.extensions && step.extensions.length > 0) {
+          pHTML += ` | Extensions: <span style="color:var(--cyan);">[${step.extensions.join(', ')}]</span>`;
+        }
+        pHTML += `  </div>`;
+      }
+
+      if (step.row) {
+        pHTML += `  <div style="margin-top:6px; font-size:10px; border-top:1px dashed var(--border); padding-top:4px;">`;
+        pHTML += `    <div style="color:var(--muted); font-size:9.5px; margin-bottom:3px; text-transform:uppercase;">Markov Transition Probabilities from Chord ${idx}:</div>`;
+        pHTML += `    <div style="display:flex; flex-direction:column; gap:2px;">`;
+        step.row.forEach((prob, stateIdx) => {
+          const stateName = currentStates[stateIdx] ? currentStates[stateIdx].name : `S${stateIdx}`;
+          const percent = (prob * 100).toFixed(1);
+          const isSelected = stateIdx === step.selectedIndex;
+          const boldStyle = isSelected ? 'font-weight:bold; color:var(--cyan);' : 'color:var(--muted);';
+          const indicator = isSelected ? '◀ SELECTED' : '';
+
+          pHTML += `      <div style="display:flex; align-items:center; gap:6px; ${boldStyle}">`;
+          pHTML += `        <span style="width:70px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${stateName}:</span>`;
+          pHTML += `        <div style="flex:1; height:4px; background:var(--panel2); border-radius:2px; position:relative;">`;
+          pHTML += `          <div style="position:absolute; left:0; top:0; bottom:0; width:${percent}%; background:${isSelected ? 'var(--cyan)' : 'var(--border)'}; border-radius:2px;"></div>`;
+          pHTML += `        </div>`;
+          pHTML += `        <span style="width:42px; text-align:right;">${percent}%</span>`;
+          pHTML += `        <span style="width:65px; font-size:9px; color:var(--cyan); font-weight:bold;">${indicator}</span>`;
+          pHTML += `      </div>`;
+        });
+        pHTML += `    </div>`;
+        pHTML += `  </div>`;
+      } else if (idx > 0) {
+        pHTML += `  <div style="font-size:10px; color:var(--muted); font-style:italic;">Direct transitions bypassed (preset, locked, or anchor state).</div>`;
+      }
+      pHTML += `</div>`;
+    });
+  }
+  pContent.innerHTML = pHTML;
+
+  // Render Phrase Decisions
+  let fHTML = '';
+  if (!intermediateLog.phrase || intermediateLog.phrase.length === 0) {
+    fHTML = `<div style="color:var(--muted); font-style:italic;">No melody phrase notes triggered yet. Ensure "Melodic Rhythm Sequencer" has active trigger cues and click GENERATE.</div>`;
+  } else {
+    fHTML += `<div style="margin-bottom:12px; font-weight:bold; color:var(--cyan); border-bottom:1px solid var(--border); padding-bottom:6px;">MELODIC DECISION TREE FOR EACH TRIGGERED STEP:</div>`;
+    intermediateLog.phrase.forEach((note, idx) => {
+      fHTML += `<div style="margin-bottom:10px; padding:8px; background:var(--panel); border:1px solid var(--border); border-radius:4px;">`;
+      fHTML += `  <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom:4px;">`;
+      fHTML += `    <span>Step ${note.stepIdx + 1} (Beat ${note.beatPos.toFixed(2)})</span>`;
+      fHTML += `    <span style="color:var(--muted);">Backing Chord: <span style="color:var(--ink);">${note.chordName}</span></span>`;
+      fHTML += `  </div>`;
+
+      fHTML += `  <div style="font-size:10px; color:var(--muted); margin-bottom:4px;">`;
+      fHTML += `    Selected Pitch Steps: <span style="color:var(--cyan); font-weight:bold;">${note.absoluteSteps}</span> (Octave ${note.octave}, Step offset: ${note.chosenStep})`;
+      fHTML += `  </div>`;
+
+      if (note.candidateSteps && note.candidateWeights) {
+        fHTML += `  <div style="margin-top:6px; font-size:10px; border-top:1px dashed var(--border); padding-top:4px;">`;
+        fHTML += `    <div style="color:var(--muted); font-size:9.5px; margin-bottom:3px; text-transform:uppercase;">Weighted Conjunct Step Candidates:</div>`;
+        fHTML += `    <div style="display:flex; flex-direction:column; gap:3px;">`;
+
+        // Find maximum weight for normalization visual bar scale
+        let maxW = 0.00001;
+        note.candidateWeights.forEach(w => { if (w > maxW) maxW = w; });
+
+        note.candidateSteps.forEach((cand, cIdx) => {
+          const w = note.candidateWeights[cIdx] || 0;
+          const pct = ((w / maxW) * 100).toFixed(1);
+          const isSel = cIdx === note.chosenIdx;
+          const boldStyle = isSel ? 'font-weight:bold; color:var(--cyan);' : 'color:var(--muted);';
+          const indicator = isSel ? '◀ CHOSEN' : '';
+
+          fHTML += `      <div style="display:flex; align-items:center; gap:6px; ${boldStyle}">`;
+          fHTML += `        <span style="width:45px; display:inline-block;">Step ${cand}:</span>`;
+          fHTML += `        <div style="flex:1; height:4px; background:var(--panel2); border-radius:2px; position:relative;">`;
+          fHTML += `          <div style="position:absolute; left:0; top:0; bottom:0; width:${pct}%; background:${isSel ? 'var(--cyan)' : 'var(--border)'}; border-radius:2px;"></div>`;
+          fHTML += `        </div>`;
+          fHTML += `        <span style="width:40px; text-align:right;">W: ${w.toFixed(2)}</span>`;
+          fHTML += `        <span style="width:55px; font-size:9px; color:var(--cyan); font-weight:bold;">${indicator}</span>`;
+          fHTML += `      </div>`;
+        });
+        fHTML += `    </div>`;
+        fHTML += `  </div>`;
+      } else {
+        fHTML += `  <div style="font-size:10px; color:var(--muted); font-style:italic;">First melody note (randomly seeded candidate selection).</div>`;
+      }
+      fHTML += `</div>`;
+    });
+  }
+  fContent.innerHTML = fHTML;
+}
+
+$('vizTabProgression').addEventListener('click', () => {
+  $('vizTabProgression').classList.add('active');
+  $('vizTabPhrase').classList.remove('active');
+  $('vizContentProgression').style.display = 'block';
+  $('vizContentPhrase').style.display = 'none';
+});
+$('vizTabPhrase').addEventListener('click', () => {
+  $('vizTabPhrase').classList.add('active');
+  $('vizTabProgression').classList.remove('active');
+  $('vizContentPhrase').style.display = 'block';
+  $('vizContentProgression').style.display = 'none';
+});
+
+function openChordEditor(cellIndex) {
+  if (!currentStates || !currentChords) return;
+  editingCellIndex = cellIndex;
+
+  chordEditSelect.innerHTML = '';
+  currentStates.forEach((st, idx) => {
+    const o = document.createElement('option');
+    o.value = idx;
+    o.textContent = st.name;
+    if (idx === currentChords[cellIndex].stateIndex) o.selected = true;
+    chordEditSelect.appendChild(o);
+  });
+
+  const activeChord = currentChords[cellIndex];
+  const defaultRoot = resolveChordRootSteps(activeChord.stateIndex, currentStates, currentTuning);
+  $('chordEditTranspose').value = activeChord.rootSteps - defaultRoot;
+  $('chordEditQuality').value = activeChord.qualityOverride || "";
+  $('chordEditExtensions').value = (activeChord.extensions || []).join(", ");
+
+  chordEditLockBtn.textContent = lockedSlots[cellIndex] !== undefined ? '\u{1F512} locked' : '\u{1F513} lock';
+  chordEditPopover.classList.add('open');
+}
+
+function saveChordFromEditor() {
+  if (editingCellIndex === null) return;
+  const stateIdx = parseInt(chordEditSelect.value);
+  const trans = parseInt($('chordEditTranspose').value) || 0;
+  const qualOverride = $('chordEditQuality').value;
+  const extStr = $('chordEditExtensions').value;
+  const ext = extStr.split(',').map(s => s.trim()).filter(Boolean);
+
+  const defaultRoot = resolveChordRootSteps(stateIdx, currentStates, currentTuning);
+  const rootSteps = defaultRoot + trans;
+  const baseState = currentStates[stateIdx];
+
+  const targetState = qualOverride ? Object.assign({}, baseState, { quality: qualOverride }) : baseState;
+  const toneSteps = resolveChordTones(targetState, currentTuning, ext, false);
+
+  currentChords[editingCellIndex] = {
+    name: baseState.name + (qualOverride ? `(${qualOverride})` : '') + (trans !== 0 ? (trans > 0 ? `+${trans}` : trans) : ''),
+    rootSteps,
+    toneSteps,
+    quality: qualOverride || baseState.quality,
+    qualityOverride: qualOverride || undefined,
+    stateIndex: stateIdx,
+    tritoneSubbed: false,
+    extensions: ext
+  };
+  currentStateIndices[editingCellIndex] = stateIdx;
+  if (lockedSlots[editingCellIndex] !== undefined) lockedSlots[editingCellIndex] = stateIdx;
+
+  surgicallyEditedNotes = null; // Reset surgical note edits when structure changes
+  renderProgressionStrip(currentChords);
+  reRenderFromEditedProgression();
+}
+
+chordEditSelect.addEventListener('change', saveChordFromEditor);
+$('chordEditTranspose').addEventListener('change', saveChordFromEditor);
+$('chordEditQuality').addEventListener('change', saveChordFromEditor);
+$('chordEditExtensions').addEventListener('change', saveChordFromEditor);
+chordEditLockBtn.addEventListener('click', () => {
+  if (editingCellIndex === null) return;
+  if (lockedSlots[editingCellIndex] !== undefined) delete lockedSlots[editingCellIndex];
+  else lockedSlots[editingCellIndex] = currentChords[editingCellIndex].stateIndex;
+  chordEditLockBtn.textContent = lockedSlots[editingCellIndex] !== undefined ? '\u{1F512} locked' : '\u{1F513} lock';
+  renderProgressionStrip(currentChords);
+});
+chordEditClose.addEventListener('click', () => { chordEditPopover.classList.remove('open'); editingCellIndex = null; });
+chordEditPopover.addEventListener('click', (e) => { if (e.target === chordEditPopover) { chordEditPopover.classList.remove('open'); editingCellIndex = null; } });
+
+async function reRenderFromEditedProgression() {
+  if (lastFullParams) {
+    lastFullParams.sample = parseInt(document.getElementById('sampleRateSelect').value) || 32000;
+  }
+  pieceSampleRate = parseInt(document.getElementById('sampleRateSelect').value) || 32000;
+  if (!lastFullParams || !currentChords || !currentTuning) return;
+  ensureAudioContext();
+  stopPlayback();
+  generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
+  try {
+    const voiceRng = new RNG((lastFullParams.seed ^ 0x9E3779B9 ^ 0xA5A5A5) >>> 0);
+    const secs = await renderFromChords(currentChords, lastFullParams, currentTuning, voiceRng, msg => { statusLine.textContent = msg; });
+    statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — edited';
+    playBtn.disabled = false; exportBtn.disabled = false;
+    playAudio();
+    stopBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    statusLine.textContent = 'error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+  }
+}
+
+NOTE_NAMES.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = n; if (i === 9) o.selected = true; rootSelect.appendChild(o); });
+
+function mapAttackSec(v) { return lerp(0.005, 0.9, v); }
+function mapReleaseSec(v) { return lerp(0.05, 2.2, v); }
+
+// Interactive Tonal Spectral Painting Event Listeners & Drag Handling
+const paintCheckbox = $('paintEnableCheckbox');
+const activeCurveSelect = $('activeCurveSelect');
+const resetCurveBtn = $('resetActiveCurveBtn');
+const clearCurvesBtn = $('clearAllCurvesBtn');
+const attractStrengthSlider = $('attractStrengthSlider');
+const attractStrengthVal = $('attractStrengthVal');
+const specCanvas = $('spectralCanvas');
+
+paintCheckbox.addEventListener('change', () => {
+  paintEnabled = paintCheckbox.checked;
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+activeCurveSelect.addEventListener('change', () => {
+  activeCurveType = activeCurveSelect.value;
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+attractStrengthSlider.addEventListener('input', () => {
+  attractStrength = parseFloat(attractStrengthSlider.value);
+  attractStrengthVal.textContent = attractStrength.toFixed(2);
+});
+
+resetCurveBtn.addEventListener('click', () => {
+  const defaults = {
+    attractor: 0.5,
+    lowLimit: 0.0,
+    highLimit: 1.0
+  };
+  const targetY = defaults[activeCurveType];
+  curves[activeCurveType] = [
+    { x: 0.0, y: targetY },
+    { x: 0.33, y: targetY },
+    { x: 0.67, y: targetY },
+    { x: 1.0, y: targetY }
+  ];
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+clearCurvesBtn.addEventListener('click', () => {
+  curves.attractor = [
+    { x: 0.0, y: 0.5 }, { x: 0.33, y: 0.5 }, { x: 0.67, y: 0.5 }, { x: 1.0, y: 0.5 }
+  ];
+  curves.lowLimit = [
+    { x: 0.0, y: 0.0 }, { x: 0.33, y: 0.0 }, { x: 0.67, y: 0.0 }, { x: 1.0, y: 0.0 }
+  ];
+  curves.highLimit = [
+    { x: 0.0, y: 1.0 }, { x: 0.33, y: 1.0 }, { x: 0.67, y: 1.0 }, { x: 1.0, y: 1.0 }
+  ];
+  if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm);
+});
+
+// Drag and drop control handles on the canvas
+let draggedPointIdx = -1;
+const clickRadius = 15;
+
+specCanvas.addEventListener('mousedown', (e) => {
+  if (!paintEnabled) return;
+  const rect = specCanvas.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
+  const activePts = curves[activeCurveType];
+  let bestDist = Infinity;
+  let bestIdx = -1;
+
+  activePts.forEach((pt, idx) => {
+    const hX = pt.x * rect.width;
+    const kVal = 1 + pt.y * (maxHarm - 1);
+    const normYPixel = getNormYForHarmBound(kVal, maxHarm, scaling);
+    const hY = rect.height - normYPixel * rect.height;
+
+    const dist = Math.hypot(cx - hX, cy - hY);
+    if (dist < clickRadius && dist < bestDist) {
+      bestDist = dist;
+      bestIdx = idx;
+    }
+  });
+
+  if (bestIdx !== -1) {
+    draggedPointIdx = bestIdx;
+    e.preventDefault();
+  }
+});
+
+// Height Adjustment Slider Wiring
+const canvasHeightSlider = $('canvasHeightSlider');
+const canvasHeightVal = $('canvasHeightVal');
+canvasHeightSlider.addEventListener('input', () => {
+  canvasHeightVal.textContent = canvasHeightSlider.value + 'px';
+  if (lastVizImage) {
+    drawSpectralImage(lastVizImage, lastVizMaxHarm);
+  }
+});
+
+specCanvas.addEventListener('mousemove', (e) => {
+  if (!paintEnabled || draggedPointIdx === -1) return;
+  const rect = specCanvas.getBoundingClientRect();
+  const normX = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+  const normYCanvas = clamp(1 - (e.clientY - rect.top) / rect.height, 0, 1);
+
+  const scaling = document.getElementById('freqScalingSelect').value || 'linear';
+  const maxHarm = lastVizMaxHarm || 24;
+
+  const kVal = getHarmBoundFromNormY(normYCanvas, maxHarm, scaling);
+  const logicalY = (kVal - 1) / (maxHarm - 1);
+
+  const activePts = curves[activeCurveType];
+
+  const shouldSnap = $('snapHarmonicCheckbox').checked;
+  if (shouldSnap) {
+    const kNearest = clamp(Math.round(kVal), 1, maxHarm);
+    activePts[draggedPointIdx].y = clamp((kNearest - 1) / (maxHarm - 1), 0, 1);
+  } else {
+    activePts[draggedPointIdx].y = clamp(logicalY, 0, 1);
+  }
+
+  if (draggedPointIdx === 1) {
+    activePts[1].x = clamp(normX, 0.05, activePts[2].x - 0.05);
+  } else if (draggedPointIdx === 2) {
+    activePts[2].x = clamp(normX, activePts[1].x + 0.05, 0.95);
+  }
+
+  if (lastVizImage) {
+    drawSpectralImage(lastVizImage, lastVizMaxHarm);
+  }
+});
+
+const stopDragging = () => { draggedPointIdx = -1; };
+specCanvas.addEventListener('mouseup', stopDragging);
+specCanvas.addEventListener('mouseleave', stopDragging);
+
+// Setup sliders and values
+document.querySelectorAll('input[type=range]').forEach(el => {
+  if (el.id === 'attackSlider' || el.id === 'releaseSlider') return;
+  el.addEventListener('input', () => {
+    const span = $(el.id.replace('Slider', 'Val'));
+    if (!span) return;
+    span.textContent = (parseFloat(el.step) >= 1) ? Math.round(el.value) : parseFloat(el.value).toFixed(2);
+  });
+});
+attackSlider.addEventListener('input', () => { $('attackVal').textContent = mapAttackSec(parseFloat(attackSlider.value)).toFixed(2) + 's'; });
+releaseSlider.addEventListener('input', () => { $('releaseVal').textContent = mapReleaseSec(parseFloat(releaseSlider.value)).toFixed(2) + 's'; });
+customEdoInput.addEventListener('input', () => { $('customEdoVal').textContent = clamp(parseInt(customEdoInput.value) || 12, 5, 72); });
+
+tuningSelect.addEventListener('change', () => { customTuningBlock.style.display = tuningSelect.value === 'custom' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
+styleSelect.addEventListener('change', () => { jazzBlock.style.display = styleSelect.value === 'jazz' ? 'block' : 'none'; clearLocksAndRegenerateHint(); });
+modeSelect.addEventListener('change', clearLocksAndRegenerateHint);
+barsSlider.addEventListener('change', clearLocksAndRegenerateHint);
+function clearLocksAndRegenerateHint() { lockedSlots = {}; }
+randSeedBtn.addEventListener('click', () => { seedInput.value = Math.floor(Math.random() * 1e9); });
+gainSlider.addEventListener('input', () => { if (masterGainNode) masterGainNode.gain.value = parseFloat(gainSlider.value); });
+
+let resizeRedrawTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeRedrawTimer);
+  resizeRedrawTimer = setTimeout(() => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); }, 150);
+});
+
+function getFrameHopSec(fid) {
+  if (fid === 'draft') return 0.05;
+  if (fid === 'standard') return 0.025;
+  if (fid === 'high') return 0.015;
+  return 0.01; // ultra
+}
+
+function readParams() {
+  const edo = tuningSelect.value === 'custom' ? clamp(parseInt(customEdoInput.value) || 12, 5, 72) : parseInt(tuningSelect.value);
+  return {
+    paintEnabled: paintCheckbox.checked,
+    curves: JSON.parse(JSON.stringify(curves)),
+    attractStrength: parseFloat(attractStrengthSlider.value),
+
+    // Dynamic dashboard choices
+    maxHarmonics: parseInt(document.getElementById('maxHarmonicsSelect').value) || 24,
+    sampleRate: parseInt(document.getElementById('sampleRateSelect').value) || 32000,
+    freqScaling: document.getElementById('freqScalingSelect').value || 'linear',
+    gridMode: document.getElementById('gridModeSelect').value || 'all',
+    timeGrid: document.getElementById('timeGridSelect').value || 'bar',
+    inputChord: document.getElementById('inputChordSelect').value || 'none',
+    outputChord: document.getElementById('outputChordSelect').value || 'none',
+
+    seed: parseInt(seedInput.value) || 0,
+    rootPC: parseInt(rootSelect.value),
+    mode: modeSelect.value,
+    edo,
+    jazzEnabled: styleSelect.value === 'jazz',
+    secDomWeight: lerp(0, 3, parseFloat(secDomSlider.value)),
+    tritoneSubChance: parseFloat(tritoneSubSlider.value),
+    extensionDensity: parseFloat(extensionSlider.value),
+    tempo: parseFloat(tempoSlider.value),
+    bars: parseInt(barsSlider.value),
+    tension: parseFloat(tensionSlider.value),
+    leapProbability: parseFloat(leapSlider.value),
+    phraseGate: parseFloat(document.getElementById('phraseGateSlider').value) || 0.80,
+    phraseGroove: document.getElementById('phraseGrooveSelect').value || 'straight',
+    ornamentProb: parseFloat(document.getElementById('ornamentSlider').value) || 0.15,
+    motifDev: document.getElementById('motifDevSelect').value || 'none',
+    density: parseFloat(densitySlider.value),
+
+    // Advanced Phrase generator hyperparameters
+    tonalDistribution: phraseTonalDistributionSelect.value,
+    octaveBase: parseInt(octaveBaseSlider.value),
+    octaveDrift: parseInt(octaveDriftSlider.value),
+    motionBias: parseFloat(motionBiasSlider.value),
+    dirTrend: parseFloat(dirTrendSlider.value),
+    phraseRhythmCues: [...phraseRhythmCues],
+
+    // Volterra Parameters
+    fidelity: fidelitySelect.value,
+    frameHopSec: getFrameHopSec(fidelitySelect.value),
+    volterraOrder: parseInt(volterraOrderSelect.value),
+    volterraTimeLag: parseInt(timeLagSlider.value),
+    volterraFreqLag: parseInt(freqLagSlider.value),
+    volterraC1: parseFloat(c1Slider.value),
+    volterraC2: parseFloat(c2Slider.value),
+    volterraC3: parseFloat(c3Slider.value),
+    volterraAlpha: parseFloat(tempDecaySlider.value),
+    volterraBeta: parseFloat(specDecaySlider.value),
+
+    volatility: parseFloat(volatilitySlider.value), richness: parseFloat(richnessSlider.value), spectralDistribution: distributionSelect.value,
+    customMarkovMatrix: getCustomMarkovMatrix(),
+    spectralCues: [...spectralCues],
+    attack: parseFloat(attackSlider.value), release: parseFloat(releaseSlider.value),
+    brightness: parseFloat(brightnessSlider.value), space: parseFloat(spaceSlider.value), gain: parseFloat(gainSlider.value),
+    drumCues: {
+      b_root: [...drumCues.b_root],
+      m_anch: [...drumCues.m_anch],
+      passing: [...drumCues.passing],
+      arpegg: [...drumCues.arpegg],
+      syncop: [...drumCues.syncop],
+      ch_pulse: [...drumCues.ch_pulse]
+    }
+  };
+}
+
+let audioCtx = null, masterGainNode = null, currentSource = null;
+let renderedL = null, renderedR = null, pieceSampleRate = 44100, currentSeed = null;
+
+function ensureAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.value = parseFloat(gainSlider.value);
+    masterGainNode.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+async function renderVoiceAsync(notes, gain, panFn, collectViz, ctx, defaultSeqType) {
+  const { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng, vizImage, vizMaxHarm, tonicFreq, edo } = ctx;
+  let i = 0;
+  for (const note of notes) {
+    const startSample = Math.round(note.startBeat * secPerBeat * sr);
+    const durSamples = Math.max(1, Math.round(note.durBeats * secPerBeat * sr));
+    const f0 = stepsToFreq(note.steps, tonicFreq, edo);
+    const numFrames = Math.max(1, Math.ceil(durSamples / frameHopSamples) + 1);
+
+    // True Volterra series spectral image generation
+    const image = buildVolterraSpectralImage(rng, numFrames, vizMaxHarm, p, note.startBeat, secPerBeat);
+    const pan = panFn(note);
+
+    // Resolve step envelope overrides
+    const seqType = note.seqType || defaultSeqType;
+    const stepIdx = note.stepIdx !== undefined ? note.stepIdx : (Math.round(note.startBeat / 0.25) % 32);
+    const envKey = `${seqType}_${stepIdx}`;
+    const customEnv = customStepEnvelopes[envKey];
+
+    let noteAttackSec = attackSec;
+    let noteReleaseSec = releaseSec;
+    let noteGain = gain;
+
+    if (customEnv) {
+      noteAttackSec = customEnv.attack;
+      noteReleaseSec = customEnv.release;
+      noteGain = gain * customEnv.gain;
+    }
+
+    renderNote(bufL, bufR, sr, startSample, durSamples, f0, image, frameHopSamples, noteAttackSec, noteReleaseSec, noteGain, pan);
+
+    if (collectViz) {
+      const noteStartFrame = Math.floor(startSample / frameHopSamples);
+      const maxH = vizMaxHarm;
+      for (let li = 0; li < image.length; li++) {
+        const gi = noteStartFrame + li;
+        if (gi < 0 || gi >= vizImage.length) continue;
+        const col = vizImage[gi];
+        for (let k = 1; k <= maxH; k++) col[k] = Math.max(col[k], image[li][k]);
+      }
+    }
+    i++;
+    if (i % 6 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+}
+
+function buildTheoryContext(p) {
+  const modeRotation = p.mode === 'major' ? 0 : 5;
+  const tuning = buildTuning(p.edo, modeRotation);
+  const baseDefs = p.mode === 'major' ? MAJOR_STATE_DEFS : MINOR_STATE_DEFS;
+  const secondaryTargets = p.mode === 'major' ? MAJOR_SECONDARY_TARGETS : MINOR_SECONDARY_TARGETS;
+  const consonantBase = p.mode === 'major' ? MAJOR_CONSONANT_BASE : MINOR_CONSONANT_BASE;
+  const states = buildStateList(baseDefs, secondaryTargets, p.jazzEnabled);
+  const matrices = buildProgressionMatrices(consonantBase, 9, secondaryTargets, p.jazzEnabled, p.secDomWeight);
+
+  updateExternalChordsSelects(states);
+
+  return { tuning, states, matrices };
+}
+
+async function doGenerate(p, onProgress) {
+  currentSeed = p.seed;
+  const progressionRng = new RNG(p.seed);
+  const voiceRng = new RNG((p.seed ^ 0x9E3779B9) >>> 0);
+
+  const { tuning, states, matrices } = buildTheoryContext(p);
+  currentStates = states; currentTuning = tuning; currentMatrices = matrices;
+
+  const stateIndices = generateProgressionIndices(progressionRng, matrices, p.tension, p.bars, lockedSlots, p.inputChord, p.outputChord);
+  const chords = resolveChords(stateIndices, states, tuning, progressionRng, { enabled: p.jazzEnabled, tritoneSubChance: p.tritoneSubChance, extensionDensity: p.extensionDensity });
+  currentStateIndices = stateIndices; currentChords = chords;
+  lastFullParams = p;
+
+  renderProgressionStrip(chords);
+  const secs = await renderFromChords(chords, p, tuning, voiceRng, onProgress);
+  renderIntermediateLog();
+  return secs;
+}
+
+let surgicallyEditedNotes = null;
+
+async function renderFromChords(chords, p, tuning, voiceRng, onProgress) {
+  pieceSampleRate = p.sample || 32000;
+  const sr = pieceSampleRate;
+  const beatsPerBar = 4;
+  const secPerBeat = 60 / p.tempo;
+  const totalMusicSec = p.bars * beatsPerBar * secPerBeat;
+  const releaseSec = mapReleaseSec(p.release);
+  const attackSec = mapAttackSec(p.attack);
+  const totalSec = totalMusicSec + releaseSec + 0.3;
+  const totalSamples = Math.ceil(totalSec * sr);
+
+  const bufL = new Float32Array(totalSamples);
+  const bufR = new Float32Array(totalSamples);
+
+  const tonicFreq = 440 * Math.pow(2, (48 + p.rootPC - 69) / 12);
+
+  let leadNotes, padNotes, bassNotes;
+  if (surgicallyEditedNotes) {
+    leadNotes = surgicallyEditedNotes.leadNotes || [];
+    padNotes = surgicallyEditedNotes.padNotes || [];
+    bassNotes = surgicallyEditedNotes.bassNotes || [];
+  } else {
+    leadNotes = generatePhrase(voiceRng, chords, beatsPerBar, p, tuning);
+    const generatedPads = generateBassPad(chords, beatsPerBar, tuning, p, voiceRng);
+    padNotes = generatedPads.padNotes;
+    bassNotes = generatedPads.bassNotes;
+
+    $('noteEditorArea').value = JSON.stringify({ leadNotes, padNotes, bassNotes }, null, 2);
+  }
+
+  const FRAME_HOP_SEC = p.frameHopSec || 0.025;
+  const frameHopSamples = Math.max(1, Math.round(FRAME_HOP_SEC * sr));
+
+  const vizMaxHarm = p.maxHarmonics || 24;
+  const totalFrames = Math.ceil(totalSamples / frameHopSamples) + 1;
+  const vizImage = Array.from({ length: totalFrames }, () => new Float32Array(vizMaxHarm + 1));
+
+  const ctx = { bufL, bufR, sr, secPerBeat, p, frameHopSamples, attackSec, releaseSec, rng: voiceRng, vizImage, vizMaxHarm, tonicFreq, edo: tuning.edo };
+  const padPans = [-0.55, 0.2, 0.55, -0.15];
+
+  onProgress('rendering lead with Volterra series…');
+  await renderVoiceAsync(leadNotes, 0.5, () => 0, true, ctx, 'phrase');
+  onProgress('rendering pad with Volterra series…');
+  await renderVoiceAsync(padNotes, 0.25, n => padPans[(n.voiceIndex || 0) % padPans.length], false, ctx, 'ch_pulse');
+  onProgress('rendering bass with Volterra series…');
+  await renderVoiceAsync(bassNotes, 0.55, () => 0, false, ctx, 'b_root');
+
+  onProgress('reverb…');
+  await new Promise(r => setTimeout(r, 0));
+  const [rL, rR] = schroederReverbStereo(bufL, bufR, sr, p.space);
+
+  onProgress('normalizing…');
+  await new Promise(r => setTimeout(r, 0));
+  let peak = 0;
+  for (let i = 0; i < totalSamples; i++) { const a = Math.abs(rL[i]), b = Math.abs(rR[i]); if (a > peak) peak = a; if (b > peak) peak = b; }
+  const normGain = peak > 0 ? Math.min(6, 0.9 / peak) : 1;
+  for (let i = 0; i < totalSamples; i++) { rL[i] *= normGain; rR[i] *= normGain; }
+
+  renderedL = rL; renderedR = rR;
+  drawSpectralImage(vizImage, vizMaxHarm);
+  return totalSamples / sr;
+}
+
+function playAudio() {
+  if (!renderedL) return;
+  ensureAudioContext();
+  stopPlayback();
+  const buffer = audioCtx.createBuffer(2, renderedL.length, pieceSampleRate);
+  buffer.copyToChannel(renderedL, 0);
+  buffer.copyToChannel(renderedR, 1);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(masterGainNode);
+  src.onended = () => { if (currentSource === src) currentSource = null; };
+  src.start();
+  currentSource = src;
+}
+function stopPlayback() {
+  if (currentSource) { try { currentSource.stop(); } catch (e) {} currentSource = null; }
+}
+function exportWav() {
+  if (!renderedL) return;
+  const blob = new Blob([encodeWavStereo(renderedL, renderedR, pieceSampleRate)], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'eidolon-volterra-' + currentSeed + '.wav';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+generateBtn.addEventListener('click', async () => {
+  ensureAudioContext();
+  stopPlayback();
+  generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
+  statusLine.textContent = 'generating structure…';
+  try {
+    surgicallyEditedNotes = null;
+    const p = readParams();
+    await new Promise(r => setTimeout(r, 10));
+    const secs = await doGenerate(p, msg => { statusLine.textContent = msg; });
+    statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — seed ' + p.seed;
+    playBtn.disabled = false; exportBtn.disabled = false;
+    playAudio();
+    stopBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    statusLine.textContent = 'error: ' + err.message;
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+
+$('updateFromNoteEditorBtn').addEventListener('click', async () => {
+  ensureAudioContext();
+  stopPlayback();
+  try {
+    const rawJson = $('noteEditorArea').value;
+    if (!rawJson) {
+      throw new Error('Note Editor is empty. Generate a structure first.');
+    }
+    const parsed = JSON.parse(rawJson);
+    if (!parsed.leadNotes || !parsed.padNotes || !parsed.bassNotes) {
+      throw new Error('JSON must contain leadNotes, padNotes, and bassNotes arrays.');
+    }
+    if (!currentChords || !currentTuning) {
+      throw new Error('Please click GENERATE first to initialize the scale and chords structure.');
+    }
+    surgicallyEditedNotes = parsed;
+
+    generateBtn.disabled = true; playBtn.disabled = true; stopBtn.disabled = true; exportBtn.disabled = true;
+    statusLine.textContent = 're-synthesizing with Volterra edits…';
+
+    const p = lastFullParams || readParams();
+    pieceSampleRate = p.sample || 32000;
+    const voiceRng = new RNG((p.seed ^ 0x9E3779B9 ^ 0xA5A5A5) >>> 0);
+    const secs = await renderFromChords(currentChords, p, currentTuning, voiceRng, msg => { statusLine.textContent = msg; });
+    statusLine.textContent = 'ready — ' + secs.toFixed(1) + 's — surgically edited';
+    playBtn.disabled = false; exportBtn.disabled = false;
+    playAudio();
+    stopBtn.disabled = false;
+  } catch (err) {
+    console.error(err);
+    alert('Failed to parse or apply Note Editor changes: ' + err.message);
+  } finally {
+    generateBtn.disabled = false;
+  }
+});
+$('maxHarmonicsSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('freqScalingSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('gridModeSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('timeGridSelect').addEventListener('change', () => { if (lastVizImage) drawSpectralImage(lastVizImage, lastVizMaxHarm); });
+$('inputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('outputChordSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('sampleRateSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('phraseGrooveSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+$('motifDevSelect').addEventListener('change', () => { clearLocksAndRegenerateHint(); });
+
+playBtn.addEventListener('click', () => { playAudio(); stopBtn.disabled = false; });
+stopBtn.addEventListener('click', () => { stopPlayback(); });
+exportBtn.addEventListener('click', exportWav);
+
+</script>
+</body>
+</html>
